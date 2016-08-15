@@ -222,7 +222,7 @@ def handleDanmu(bContent):
             # notification
             assert (bContent[8:12] == unhexlify('00000000'));
             mData = json.loads(bContent[12:].decode('utf-8'));
-            if (re.match(r'welcome|sys_gift|sys_msg|send_top|add_vt_member', mData['cmd'].lower())):
+            if (re.match(r'welcome|sys_gift|sys_msg|send_top|add_vt_member|bet_bettor|bet_banker', mData['cmd'].lower())):
                 # welcome message | system-wide gift message 1 | system-wide gift message 2 | virtual audience?
                 pass;
             elif (mData['cmd'].lower() == 'danmu_msg'):
@@ -249,9 +249,10 @@ def handleDanmu(bContent):
             elif (mData['cmd'].lower() == 'room_block_msg'):
                 display('{} 已被禁言'.format(mData['uname']));
             elif (mData['cmd'].lower() == 'room_silent_on'):
-                display('房间已开启全局禁言 {} 秒'.format(mData['countdown']));
+                # sType maybe means the user level under which users will be silent
+                sType = str(mData['type']) if mData['type'] != -1 else '全局';
+                display('开启{}禁言 {} 秒'.format(sType, mData['countdown']));
             elif (mData['cmd'].lower() == 'room_silent_off'):
-                # may not appear reasonably
                 display('全局禁言已取消');
             else:
                 display(mData);
