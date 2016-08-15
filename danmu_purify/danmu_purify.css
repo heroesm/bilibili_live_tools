@@ -1,0 +1,23 @@
+@namespace url(http://www.w4.org/1999/xhtml);
+
+@-moz-document domain("live.bilibili.com") {
+/*    .message-history div{
+        display: none;
+    }
+    .message-history div.talk{
+        display: inherit;
+    }*/
+    .chat-msg-list .system-msg,
+    .chat-msg-list .announcement-container,
+    .chat-msg-list .gift-msg,
+    .chat-msg-list .chat-msg>:not(.user-name):not(.msg-content),
+    .chat-msg-list .chat-msg>span *,
+    .super-gift-ctnr,
+    .lottery-panel,
+    #gift-msg-1000{
+        display: none;
+    }
+    #chat-msg-list{
+        height: 100%
+    }
+}
