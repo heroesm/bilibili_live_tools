@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 # -*- coding: UTF-8 -*-
 
+#import sys
 #from __future__ import print_function
 #from __future__ import unicode_literals
 import threading
@@ -28,6 +29,8 @@ class Displayer():
         except UnicodeEncodeError as e:
             # deal with terminals using GBK encoding, like Windos in Chinese
             aArgs = (str(x).encode('gbk', 'replace').decode('gbk') for x in aArgs);
+            #sCode = sys.stdin.encoding;
+            #aArgs = (str(x).encode(sCode, 'replace').decode(sCode) for x in aArgs);
             print(*aArgs, **mArgs);
     def dequeue(self):
         while 1:

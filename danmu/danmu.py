@@ -46,7 +46,9 @@ sAPI1 = 'http://live.bilibili.com/api/player?id=cid:';
 # where to get the hostname of danmu server particular to certain room
 sAPI2 = 'http://live.bilibili.com/live/getInfo?roomid=';
 # where to get room-related information
-#log = print;
+
+log = None;
+# log is the verbose level display function
 nRoom = None;
 # the room ID
 nPop = None;
@@ -64,17 +66,21 @@ mConfig = {
         'nRoom': 0,
         'nDelay': 0,
         'singleLine': 0,
-        'timeStamp': 1
+        'timeStamp': 1,
+        'verbose': 0
 }
 
-# explanation of configuration option
+# explanation of configuration option of format:
+# <key> : (<description>, <shorthand>)
+# <shorthand> could equal False meaning absence of shorthand, but the tuble must have two items
 mExplain = {
-        'gift': 'whether to display gift notification; should be equivalent to 0 or 1',
-        'colour': 'whether to use colour scheme, not fully supported in windows; should be equivalent to 0 or 1 ### Note that colour is implemented using ANSI escape character, which is not completedly supported in windows, meaning that it may not work by run it directly or with powershell. Run the programme through cmd(which support win32api) to bypass the problem. Otherwise set it to 0 to roll back to monochrome mode.',
-        'nRoom': 'the default room ID; while enable it, room ID will not be read from command line; should be positive integer; zero defaults to get room ID from command line',
-        'nDelay': 'the separation time between every single danmu message; while used, the recommended value is 0.1 or 0.2; set to 0 to disable separation; should be zero or positive float',
-        'singleLine': 'whether to display every danmu message in a single line; should be equivalent to 0 or 1; defaults to 0 meaning displaying message in two lines',
-        'timeStamp': 'whether to show receiving time of danmu message; should be equivalent to 0 or 1; defaluts to 1 meaning that, appending time stamp to sender name while singleLine is 0, and prepend time stamp to sender namer while singleLine is 1'
+        'gift': ('whether to display gift notification; should be equivalent to 0 or 1', 'g'),
+        'colour': ('whether to use colour scheme, not fully supported in windows; should be equivalent to 0 or 1 ### Note that colour is implemented using ANSI escape character, which is not completedly supported in windows, meaning that it may not work by run it directly or with powershell. Run the programme through cmd(which support win32api) to bypass the problem. Otherwise set it to 0 to roll back to monochrome mode.', 'c'),
+        'nRoom': ('the default room ID; while enable it, room ID will not be read from command line; should be positive integer; zero defaults to get room ID from command line', 'r'),
+        'nDelay': ('the separation time between every single danmu message; while used, the recommended value is 0.1 or 0.2; set to 0 to disable separation; should be zero or positive float', 'd'),
+        'singleLine': ('whether to display every danmu message in a single line; should be equivalent to 0 or 1; defaults to 0 meaning displaying message in two lines', 's'),
+        'timeStamp': ('whether to show receiving time of danmu message; should be equivalent to 0 or 1; defaluts to 1 meaning that, appending time stamp to sender name while singleLine is 0, and prepend time stamp to sender namer while singleLine is 1', 't'),
+        'verbose': ('whether to display diagnostic information to console; should be equivalent to 0 or 1', 'v')
 }
 
 # type specification of configuration option
@@ -85,7 +91,8 @@ mMap = {
         'nRoom': lambda x: int(x),
         'nDelay': lambda x: float(x),
         'singleLine': lambda x: int(x),
-        'timeStamp': lambda x: int(x)
+        'timeStamp': lambda x: int(x),
+        'verbose': lambda x: int(x)
 }
 
 # receive CR from stdin to send heartbeat message, which induce a online count response
@@ -120,7 +127,7 @@ def getRoom(nRoom):
         sServer = re.search('<server>(.*?)</server>', sRoomInfo).group(1);
         # hostname of danmu server
     except socket.timeout as e:
-        display('获取弹幕服务器时连接超时',
+        display1('获取弹幕服务器时连接超时',
                 '尝试使用默认弹幕服务器地址',
                 sep='\n');
         sServer = 'livecmt-1.bilibili.com';
@@ -151,12 +158,12 @@ def getRoom(nRoom):
         sHoster = mData['data']['ANCHOR_NICK_NAME'];
         sTitle = mData['data']['ROOMTITLE'];
         sStatus = mData['data']['LIVE_STATUS'];
-        display('播主：{}\n房间：{}\n状态：{}'.format(sHoster, sTitle, sStatus))
+        display1('播主：{}\n房间：{}\n状态：{}'.format(sHoster, sTitle, sStatus))
     except Exception as e:
         # not expected to happen
-        display('获取房间信息失败');
+        display1('获取房间信息失败');
         raise;
-        display(bRoomInfo);
+        log(bRoomInfo);
     finally:
         if ('f1' in locals()): f1.close();
     return sServer, nRoom;
@@ -172,14 +179,14 @@ def handler1(sock1):
         bContent = fSock.read(nLength - 4);
         if (hexlify(bContent) == b'001000010000000800000001'): 
             # welcome message
-            display('已接入弹幕服务器', '按回车显示在线人数', 'ctrl-c退出');
+            display1('已接入弹幕服务器', '按回车显示在线人数', 'ctrl-c退出');
             while alive:
                 try:
                     nLength = struct.unpack('>I', fSock.read(4))[0];
                     bContent = fSock.read(nLength - 4);
                     handleDanmu(bContent);
                 except TimeoutError as e:
-                    display(e);
+                    log(e);
     finally:
         if ('fSock' in locals()): fSock.close();
 
@@ -190,7 +197,7 @@ def handler2(sock1):
     sock1.settimeout(0);
     if (hexlify(bData) == b'00000010001000010000000800000001'): 
         # welcome message
-        display('已接入弹幕服务器', '按回车显示在线人数', 'ctrl-c退出');
+        display1('已接入弹幕服务器', '按回车显示在线人数', 'ctrl-c退出');
     bBuff = b'';
     while alive:
         r, w, e = select.select([sock1], [], []);
@@ -215,9 +222,9 @@ def handleDanmu(bContent):
             # online counter
             assert (bContent[8:12] == unhexlify('00000001'));
             nPop = struct.unpack('>I', bContent[12:16])[0];
-            display(nPop, '人在线，房间号', nRoom);
+            display1(nPop, '人在线，房间号', nRoom);
         else:
-            display('unknown control info', bContent, sep='\n');
+            log('unknown control info', bContent, sep='\n');
     elif (bContent[0:4] == unhexlify('00100000')):
         if (bContent[4:8] == unhexlify('00000005')):
             # notification
@@ -265,11 +272,11 @@ def handleDanmu(bContent):
                 # record unknown cmd field in response message, that possibly has been overlooked by me or newly added by bilibili
                 with open('unknown_message.txt', 'a', encoding='utf-8') as f2:
                     f2.write('\n' + str(mData));
-                display(mData);
+                log(mData);
         else:
-            display('unknown notification', bContent, sep='\n');
+            log('unknown notification', bContent, sep='\n');
     else:
-        display('unknown type', bContent, sep='\n');
+        log('unknown type', bContent, sep='\n');
 
 
 def main():
@@ -277,6 +284,7 @@ def main():
     global running;
     global mConfig, mMap, mExplain;
     global display, display1, display2;
+    global log;
     global nRoom
     # use crafted display function to ease the migration from python3 to python2 and to accommodate different terminal coding in different system
     # display1 is normal displayer, while display2 is a separate displayer running in special thread, implementing the display interval
@@ -286,7 +294,8 @@ def main():
     mConfigBak = mConfig.copy();
     try:
         parser1 = ConfigParser(mConfig, mExplain, 'display danmu message in bilibili live');
-        mData = parser1.parse('config.ini', True);
+        useCLI = True if len(sys.argv) > 1 else False;
+        mData = parser1.parse('config.ini', useCLI);
         # parse configuration from file and from command line option
         for x in mMap.keys():
             if x in mData.keys():
@@ -299,6 +308,11 @@ def main():
         # danmu message display interval is enabled, using threaded displayer
         display2 = Displayer(1, mConfig['nDelay']).display;
         display = display2;
+    if (mConfig['verbose']):
+        log = display1;
+    else:
+        def log(*aArgs, **mArgs): pass;
+    log(mConfig);
     nRoom = mConfig['nRoom'] or int(input('room ID:'));
     running = True;
     socket.setdefaulttimeout(10);
@@ -310,23 +324,23 @@ def main():
                 display1('找不到该房间，请重新输入房间号');
                 nRoom = int(input('room ID:'));
                 continue;
-            display('弹幕服务器 ' + sServer);
+            log('弹幕服务器 ' + sServer);
             aAddr1 = (sServer, 788);
             sock1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM);
             try:
                 sock1.connect(aAddr1);
             except TimeoutError as e:
                 sock1.close();
-                display('到弹幕服务器的连接失败，尝试更换地址');
+                display1('到弹幕服务器的连接失败，尝试更换地址');
                 if (sServer == 'livecmt-1.bilibili.com'):
                     sServer = 'livecmt-2.bilibili.com';
                 else:
                     sServer = 'livecmt-1.bilibili.com';
-                display('弹幕服务器 ' + sServer);
+                log('弹幕服务器 ' + sServer);
                 aAddr1 = (sServer, 788);
                 sock1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM);
                 sock1.connect(); 
-            display('地址为 ', *sock1.getpeername());
+            log('地址为 ', *sock1.getpeername());
             nUid = int(100000000000000 + 200000000000000*random.random());
             # a random meaningless user ID
             bPayload = b'{"roomid":%d,"uid":%d}' % (nRoom, nUid);
@@ -351,7 +365,7 @@ def main():
                 running = False;
             elif (sys.version[0] == '3' and isinstance(e, ConnectionResetError)):
                 # ConnectionResetError is not supported in python2
-                display('到服务器的连接被断开，尝试重新连接...');
+                display1('到服务器的连接被断开，尝试重新连接...');
                 continue;
             else:
                 with open('danmu_error.log', 'ab') as f1:

@@ -3,6 +3,7 @@
 
 #from __future__ import print_function
 #from __future__ import unicode_literals
+
 import argparse
 import re
 import os.path
@@ -73,7 +74,13 @@ class ConfigParser():
         parser1 = argparse.ArgumentParser(description=self.sDoc);
         if (self.mExplain):
             for x in self.mExplain.keys():
-                parser1.add_argument('--' + x, help=self.mExplain[x]);
+                sShort = self.mExplain[x][1];
+                sExplain = self.mExplain[x][0];
+                if (sShort):
+                    parser1.add_argument('-' + sShort, '--' + x.lower(), help=sExplain, dest=x);
+                else:
+                    parser1.add_argument('--' + x.lower(), help=sExplain, dest=x);
+
         elif (self.mConfig):
             for x in self.mConfig.keys():
                 parser1.add_argument('--' + x);
