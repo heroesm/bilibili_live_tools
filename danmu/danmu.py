@@ -208,13 +208,14 @@ def handler2(sock1):
 def handleDanmu(bContent):
     'deal with separate danmu message and output them accordingly'
     global nPop;
+    global nRoom;
     if (bContent[0:4] == unhexlify('00100001')):
         # control info
         if (bContent[4:8] == unhexlify('00000003')):
             # online counter
             assert (bContent[8:12] == unhexlify('00000001'));
             nPop = struct.unpack('>I', bContent[12:16])[0];
-            display(nPop, '人在线');
+            display(nPop, '人在线，房间号', nRoom);
         else:
             display('unknown control info', bContent, sep='\n');
     elif (bContent[0:4] == unhexlify('00100000')):
@@ -222,8 +223,12 @@ def handleDanmu(bContent):
             # notification
             assert (bContent[8:12] == unhexlify('00000000'));
             mData = json.loads(bContent[12:].decode('utf-8'));
-            if (re.match(r'welcome|sys_gift|sys_msg|send_top|add_vt_member|bet_bettor|bet_banker', mData['cmd'].lower())):
+            #if (re.match(r'welcome|sys_gift|sys_msg|send_top|add_vt_member|bet_bettor|bet_banker', mData['cmd'].lower())):
+            if (mData['cmd'].lower() in ['welcome', 'sys_gift', 'sys_msg', 'send_top', 'add_vt_member', 'bet_bettor', 'bet_banker']):
                 # welcome message | system-wide gift message 1 | system-wide gift message 2 | virtual audience?
+                pass;
+            elif (mData['cmd'].lower() == 'special_gift'):
+                # stupid danmu storm; may add a functionality to block storming danmu message in future
                 pass;
             elif (mData['cmd'].lower() == 'danmu_msg'):
                 # text message
@@ -254,7 +259,12 @@ def handleDanmu(bContent):
                 display('开启{}禁言 {} 秒'.format(sType, mData['countdown']));
             elif (mData['cmd'].lower() == 'room_silent_off'):
                 display('全局禁言已取消');
+            elif (mData['cmd'].lower() == 'preparing'):
+                display('直播已结束');
             else:
+                # record unknown cmd field in response message, that possibly has been overlooked by me or newly added by bilibili
+                with open('unknown_message.txt', 'a', encoding='utf-8') as f2:
+                    f2.write('\n' + str(mData));
                 display(mData);
         else:
             display('unknown notification', bContent, sep='\n');
@@ -267,6 +277,7 @@ def main():
     global running;
     global mConfig, mMap, mExplain;
     global display, display1, display2;
+    global nRoom
     # use crafted display function to ease the migration from python3 to python2 and to accommodate different terminal coding in different system
     # display1 is normal displayer, while display2 is a separate displayer running in special thread, implementing the display interval
     # in each case, display1 shall be a instant displayer; thus, use display1 to output diagnostic message
