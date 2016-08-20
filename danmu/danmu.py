@@ -47,22 +47,25 @@ sAPI1 = 'http://live.bilibili.com/api/player?id=cid:';
 sAPI2 = 'http://live.bilibili.com/live/getInfo?roomid=';
 # where to get room-related information
 
-log = None;
 # log is the verbose level display function
-nRoom = None;
+log = None;
 # the room ID
-nPop = None;
+nRoom = None;
 # the population of online audience, seems useless currently
-running = False;
+nPop = None;
 # flag that the programme is running, used to control the recursion in threads
-alive = False;
+running = False;
 # flag that the danmu-related TCP socket is connected
+alive = False;
+# the character colour actually being used
+aColour = [3, 17];
 
 # the default programme configuration
 mConfig = { 
         'gift': 0,
         # Note that colour is implemented using ANSI escape character, which is not completedly supported in windows, meaning that it may not work by running it directly or with powershell. Run the programme through cmd(which support win32api) to bypass the problem. Otherwise set it to 0 to roll back to monochrome mode.
         'colour': 1,
+        'aColour': [3, 17],
         'nRoom': 0,
         'nDelay': 0,
         'singleLine': 0,
@@ -76,6 +79,7 @@ mConfig = {
 mExplain = {
         'gift': ('whether to display gift notification; should be equivalent to 0 or 1', 'g'),
         'colour': ('whether to use colour scheme, not fully supported in windows; should be equivalent to 0 or 1 ### Note that colour is implemented using ANSI escape character, which is not completedly supported in windows, meaning that it may not work by running it directly or with powershell. Run the programme through cmd(which support win32api) to bypass the problem. Otherwise set it to 0 to roll back to monochrome mode.', 'c'),
+        'aColour': ('if colour scheme (see -c) is used, this option will determine the scheme specification; the value is of format: <sender colour>,<content colour> , i.e., two colour tokens separated by a comma; the colour token, specifying which colour to use, is represented in integer; there are 16 alternative colours in total, specified by 16 integer number: the integer from 0 to 7 represents Black, Red, Green, Yellow, Blue, Magenta, Cyan and White, respectively; then the integer from 10 to 17 represents the similar-named but brighter colour; note that 17 means pure white while 7 is shallow gray visually; learn more from ANSI escape code', 'a'),
         'nRoom': ('the default room ID; while enable it, room ID will not be read from command line; should be positive integer; zero defaults to get room ID from command line', 'r'),
         'nDelay': ('the separation time between every single danmu message; while used, the recommended value is 0.1 or 0.2; set to 0 to disable separation; should be zero or positive float', 'd'),
         'singleLine': ('whether to display every danmu message in a single line; should be equivalent to 0 or 1; defaults to 0 meaning displaying message in two lines', 's'),
@@ -88,6 +92,7 @@ mMap = {
         # doing type conversion of configuration
         'gift': lambda x: int(x),
         'colour': lambda x: int(x),
+        'aColour': lambda x: [int(n) if (int(n) in list(range(0,8))+list(range(10,18)) and len(x.split(',')) == 2) else int(None) for n in x.split(',')],
         'nRoom': lambda x: int(x),
         'nDelay': lambda x: float(x),
         'singleLine': lambda x: int(x),
@@ -216,6 +221,7 @@ def handleDanmu(bContent):
     'deal with separate danmu message and output them accordingly'
     global nPop;
     global nRoom;
+    global aColour;
     if (bContent[0:4] == unhexlify('00100001')):
         # control info
         if (bContent[4:8] == unhexlify('00000003')):
@@ -248,8 +254,8 @@ def handleDanmu(bContent):
                 if (mConfig['colour']):
                     # ANSI escape charcter, preceded by \x1b (\033 or namely Escape character) and [, followed by m, 30-37 accord to colours - Black, Red, Green, Yellow, Blue, Magenta, Cyan and White; 90-97 accord to the same named but much brighter colours
                     colour = lambda x,y: '\x1b[{}m{}\x1b[00m'.format(y, x);
-                    sSender = colour(sSender, 33);
-                    sMessage = colour(sMessage, 97);
+                    sSender = colour(sSender, aColour[0]);
+                    sMessage = colour(sMessage, aColour[1]);
                 if (mConfig['singleLine']):
                     display('{1} {0}: {2}'.format(sSender, sTime, sMessage));
                 else:
@@ -285,7 +291,8 @@ def main():
     global mConfig, mMap, mExplain;
     global display, display1, display2;
     global log;
-    global nRoom
+    global nRoom;
+    global aColour;
     # use crafted display function to ease the migration from python3 to python2 and to accommodate different terminal coding in different system
     # display1 is normal displayer, while display2 is a separate displayer running in special thread, implementing the display interval
     # in each case, display1 shall be a instant displayer; thus, use display1 to output diagnostic message
@@ -308,6 +315,7 @@ def main():
         # danmu message display interval is enabled, using threaded displayer
         display2 = Displayer(1, mConfig['nDelay']).display;
         display = display2;
+    aColour = [(x + 30 if x < 10 else x + 80) for x in mConfig['aColour']];
     if (mConfig['verbose']):
         log = display1;
     else:

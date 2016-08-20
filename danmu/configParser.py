@@ -53,7 +53,7 @@ class ConfigParser():
                 nEnd = sData.find('#')
                 if (nEnd != -1):
                     sData = sData[:nEnd];
-                result = re.search('^\\s*(\\w+)\\s*=\\s*([\\w.]+)\\s*$', sData);
+                result = re.search('^\\s*(\\w+)\\s*=\\s*([\\w.,]+)\\s*$', sData);
                 if (result):
                     sKey = result.group(1);
                     sValue = result.group(2);
@@ -61,9 +61,11 @@ class ConfigParser():
             if (not self.mConfig):
                 self.mConfig = mData;
             else:
-                for x in mData.keys():
-                    if x in self.mConfig.keys():
+                for x in self.mConfig.copy().keys():
+                    if x in mData.keys():
                         self.mConfig[x] = mData[x];
+                    else:
+                        del self.mConfig[x];
             display('已载入配置文件 {}'.format(sPath));
         #except FileNotFoundError as e:
         #    display('配置文件 {} 不存在，使用默认值'.format(sPath));
