@@ -61,7 +61,7 @@ alive = False;
 # the default programme configuration
 mConfig = { 
         'gift': 0,
-        # Note that colour is implemented using ANSI escape character, which is not completedly supported in windows, meaning that it may not work by run it directly or with powershell. Run the programme through cmd(which support win32api) to bypass the problem. Otherwise set it to 0 to roll back to monochrome mode.
+        # Note that colour is implemented using ANSI escape character, which is not completedly supported in windows, meaning that it may not work by running it directly or with powershell. Run the programme through cmd(which support win32api) to bypass the problem. Otherwise set it to 0 to roll back to monochrome mode.
         'colour': 1,
         'nRoom': 0,
         'nDelay': 0,
@@ -75,7 +75,7 @@ mConfig = {
 # <shorthand> could equal False meaning absence of shorthand, but the tuble must have two items
 mExplain = {
         'gift': ('whether to display gift notification; should be equivalent to 0 or 1', 'g'),
-        'colour': ('whether to use colour scheme, not fully supported in windows; should be equivalent to 0 or 1 ### Note that colour is implemented using ANSI escape character, which is not completedly supported in windows, meaning that it may not work by run it directly or with powershell. Run the programme through cmd(which support win32api) to bypass the problem. Otherwise set it to 0 to roll back to monochrome mode.', 'c'),
+        'colour': ('whether to use colour scheme, not fully supported in windows; should be equivalent to 0 or 1 ### Note that colour is implemented using ANSI escape character, which is not completedly supported in windows, meaning that it may not work by running it directly or with powershell. Run the programme through cmd(which support win32api) to bypass the problem. Otherwise set it to 0 to roll back to monochrome mode.', 'c'),
         'nRoom': ('the default room ID; while enable it, room ID will not be read from command line; should be positive integer; zero defaults to get room ID from command line', 'r'),
         'nDelay': ('the separation time between every single danmu message; while used, the recommended value is 0.1 or 0.2; set to 0 to disable separation; should be zero or positive float', 'd'),
         'singleLine': ('whether to display every danmu message in a single line; should be equivalent to 0 or 1; defaults to 0 meaning displaying message in two lines', 's'),
@@ -222,7 +222,7 @@ def handleDanmu(bContent):
             # online counter
             assert (bContent[8:12] == unhexlify('00000001'));
             nPop = struct.unpack('>I', bContent[12:16])[0];
-            display1(nPop, '人在线，房间号', nRoom);
+            display1('在线数:',nPop, ' 房间号:', nRoom, sep='');
         else:
             log('unknown control info', bContent, sep='\n');
     elif (bContent[0:4] == unhexlify('00100000')):
