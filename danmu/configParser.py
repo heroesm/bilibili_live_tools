@@ -18,7 +18,7 @@ def display(*args, **kargs):
 class ConfigParser():
     ''' ConfigParser will not violate the input mConfig
     every key or values in the returned dictionary is of string type
-    so the invoking is responsible to do the check and conversion
+    so the invoking one is responsible to do the check and conversion
     the mConfig argument is the model configuration dictionary
     the mExplan argument is the specification of documents responding to --help command line option
     '''
