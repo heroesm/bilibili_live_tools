@@ -318,7 +318,7 @@ def main():
         mData = parser1.parse(sPath, useCLI);
         mConfig = mData;
     except Exception as e:
-        display1('读取配置文件时发生错误：', e, sep='\n');
+        display1('读取配置出错：', e, sep='\n');
         display1('退回默认配置');
         mConfig = mConfigBak;
     if (mConfig['nDelay'] > 0):

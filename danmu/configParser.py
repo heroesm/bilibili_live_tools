@@ -72,6 +72,10 @@ class ConfigParser():
                             t = self.mMap[x](t);
                         self.mConfig[x] = t;
             display('已载入配置文件 {}'.format(sPath));
+        except Exception as e:
+            display('读取配置文件时发生错误：', e, sep='\n');
+            display('退回默认配置');
+            self.mConfig = self.mOriginConfig;
         #except FileNotFoundError as e:
         #    display('配置文件 {} 不存在，使用默认值'.format(sPath));
         finally:
