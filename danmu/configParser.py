@@ -18,11 +18,11 @@ def display(*args, **kargs):
 class ConfigParser():
     ''' ConfigParser will not violate the input mConfig
     every key or values in the returned dictionary is of string type
-    so the invoking one is responsible to do the check and conversion
     the mConfig argument is the model configuration dictionary
     the mExplan argument is the specification of documents responding to --help command line option
+    the mMap argument is the dictionary containing check and conversion functions according to each configuration option
     '''
-    def __init__(self, mConfig, mExplain=None, sDoc=None):
+    def __init__(self, mConfig, mExplain=None, mMap=None, sDoc=None):
         self.mOriginConfig = mConfig;
         self.sDoc = sDoc;
         if (mConfig):
@@ -33,6 +33,10 @@ class ConfigParser():
             self.mExplain = mExplain.copy();
         else:
             self.mExplain = {};
+        if (mMap):
+            self.mMap = mMap.copy();
+        else:
+            self.mMap = {};
 
     def parse(self, sPath=None, isCLI=False):
         if (sPath):
@@ -44,7 +48,7 @@ class ConfigParser():
     def parseFile(self, sPath):
         try:
             if (not os.path.exists(sPath)):
-                display('配置文件 {} 不存在，使用默认值'.format(sPath));
+                display('找不到指定的配置文件 {}'.format(sPath));
                 return;
             configFile = open(sPath, 'r', encoding='utf-8');
             mData = {};
@@ -61,11 +65,12 @@ class ConfigParser():
             if (not self.mConfig):
                 self.mConfig = mData;
             else:
-                for x in self.mConfig.copy().keys():
+                for x in self.mConfig.keys():
                     if x in mData.keys():
-                        self.mConfig[x] = mData[x];
-                    else:
-                        del self.mConfig[x];
+                        t = mData[x];
+                        if (x in self.mMap.keys()):
+                            t = self.mMap[x](t);
+                        self.mConfig[x] = t;
             display('已载入配置文件 {}'.format(sPath));
         #except FileNotFoundError as e:
         #    display('配置文件 {} 不存在，使用默认值'.format(sPath));
@@ -91,7 +96,10 @@ class ConfigParser():
         sFeedback = '';
         for x in mData.keys():
             if (mData[x]):
-                self.mConfig[x] = mData[x];
+                t = mData[x];
+                if (x in self.mMap.keys()):
+                    t = self.mMap[x](t);
+                self.mConfig[x] = t;
                 sFeedback += ' {} = {};'.format(x, mData[x]);
         if (sFeedback):
             sFeedback = '命令行设置:' + sFeedback;

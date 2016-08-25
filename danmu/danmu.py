@@ -24,6 +24,7 @@ refer from http://www.lyyyuna.com/2016/03/14/bilibili-danmu01/:
 '''
 #from __future__ import print_function
 #from __future__ import unicode_literals
+import os.path
 import sys
 import socket
 import json
@@ -47,6 +48,8 @@ sAPI1 = 'http://live.bilibili.com/api/player?id=cid:';
 sAPI2 = 'http://live.bilibili.com/live/getInfo?roomid=';
 # where to get room-related information
 
+# the path to the configuration file
+sPath = 'config.ini'
 # log is the verbose level display function
 log = None;
 # the room ID
@@ -286,6 +289,7 @@ def handleDanmu(bContent):
 
 
 def main():
+    global sPath;
     global alive;
     global running;
     global mConfig, mMap, mExplain;
@@ -293,20 +297,26 @@ def main():
     global log;
     global nRoom;
     global aColour;
-    # use crafted display function to ease the migration from python3 to python2 and to accommodate different terminal coding in different system
+    # use crafted display function to ease the migration from python3 to python2 and to accommodate to different terminal coding in different system
     # display1 is normal displayer, while display2 is a separate displayer running in special thread, implementing the display interval
     # in each case, display1 shall be a instant displayer; thus, use display1 to output diagnostic message
     display1 = Displayer(0).display;
     display = display1;
     mConfigBak = mConfig.copy();
     try:
-        parser1 = ConfigParser(mConfig, mExplain, 'display danmu message in bilibili live');
+        parser1 = ConfigParser(mConfig, mExplain, mMap, 'display danmu message in bilibili live');
         useCLI = True if len(sys.argv) > 1 else False;
-        mData = parser1.parse('config.ini', useCLI);
+        if (not os.path.exists(sPath)):
+            sDir = os.path.split(sys.argv[0])[0];
+            sFile = os.path.join(sDir, sPath);
+            if (os.path.exists(sFile)):
+                sPath = sFile;
+            else:
+                display1('配置文件 {} 不存在'.format(sPath));
+                sPath = None;
         # parse configuration from file and from command line option
-        for x in mMap.keys():
-            if x in mData.keys():
-                mConfig[x] = mMap[x](mData[x]);
+        mData = parser1.parse(sPath, useCLI);
+        mConfig = mData;
     except Exception as e:
         display1('读取配置文件时发生错误：', e, sep='\n');
         display1('退回默认配置');
@@ -351,7 +361,8 @@ def main():
             log('地址为 ', *sock1.getpeername());
             nUid = int(100000000000000 + 200000000000000*random.random());
             # a random meaningless user ID
-            bPayload = b'{"roomid":%d,"uid":%d}' % (nRoom, nUid);
+            #bPayload = b'{"roomid":%d,"uid":%d}' % (nRoom, nUid);
+            bPayload = ('{"roomid":%d,"uid":%d}' % (nRoom, nUid)).encode('utf-8');
             nLength = len(bPayload) + 16;
             bReq = struct.pack('>IIII', nLength, 0x100001, 0x7, 0x1);  
             bReq += bPayload;
