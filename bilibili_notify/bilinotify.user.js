@@ -2,7 +2,7 @@
 // @name        bilibili notify
 // @namespace   heroesm
 // @include     http://live.bilibili.com/feed/getList/1
-// @version     1
+// @version     1.0.1
 // @grant       none
 // 
 // ==/UserScript==
@@ -142,4 +142,9 @@ function main(){
 
 try{
     main();
-}catch(e){console.log(e.toString());}
+}catch(e){
+    console.log(e.toString());
+    setTimeout(function(){
+        window.location.reload();
+    }, 30000);
+}
