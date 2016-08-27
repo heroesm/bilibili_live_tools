@@ -62,6 +62,8 @@ running = False;
 alive = False;
 # the character colour actually being used
 aColour = [3, 17];
+# the local file object to be written
+localFile = None;
 
 # the default programme configuration
 mConfig = { 
@@ -73,10 +75,11 @@ mConfig = {
         'nDelay': 0,
         'singleLine': 0,
         'timeStamp': 1,
-        'verbose': 0
+        'verbose': 0,
+        'write': 0
 }
 
-# explanation of configuration option of format:
+# explanation of configuration option, of format:
 # <key> : (<description>, <shorthand>)
 # <shorthand> could equal False meaning absence of shorthand, but the tuble must have two items
 mExplain = {
@@ -87,7 +90,8 @@ mExplain = {
         'nDelay': ('the separation time between every single danmu message; while used, the recommended value is 0.1 or 0.2; set to 0 to disable separation; should be zero or positive float', 'd'),
         'singleLine': ('whether to display every danmu message in a single line; should be equivalent to 0 or 1; defaults to 0 meaning displaying message in two lines', 's'),
         'timeStamp': ('whether to show receiving time of danmu message; should be equivalent to 0 or 1; defaluts to 1 meaning that, appending time stamp to sender name while singleLine is 0, and prepend time stamp to sender namer while singleLine is 1', 't'),
-        'verbose': ('whether to display diagnostic information to console; should be equivalent to 0 or 1', 'v')
+        'verbose': ('whether to display diagnostic information to console; should be equivalent to 0 or 1; defaults to 0', 'v'),
+        'write': ('whether to write danmu message to a local file, whose name will consists of the date, the hoster name and the room title; should be equivalent to 0 or 1; defaults to 0', 'w')
 }
 
 # type specification of configuration option
@@ -100,7 +104,8 @@ mMap = {
         'nDelay': lambda x: float(x),
         'singleLine': lambda x: int(x),
         'timeStamp': lambda x: int(x),
-        'verbose': lambda x: int(x)
+        'verbose': lambda x: int(x),
+        'write': lambda x: int(x)
 }
 
 # receive CR from stdin to send heartbeat message, which induce a online count response
@@ -174,7 +179,7 @@ def getRoom(nRoom):
         log(bRoomInfo);
     finally:
         if ('f1' in locals()): f1.close();
-    return sServer, nRoom;
+    return sServer, nRoom, sHoster, sTitle;
 
 def handler1(sock1):
     'handle danmu-related TCP socket with socket makefile'
@@ -225,6 +230,7 @@ def handleDanmu(bContent):
     global nPop;
     global nRoom;
     global aColour;
+    global localFile;
     if (bContent[0:4] == unhexlify('00100001')):
         # control info
         if (bContent[4:8] == unhexlify('00000003')):
@@ -248,8 +254,8 @@ def handleDanmu(bContent):
                 pass;
             elif (mData['cmd'].lower() == 'danmu_msg'):
                 # text message
-                sSender = mData['info'][2][1];
-                sMessage = mData['info'][1];
+                sSender = sRawSender = mData['info'][2][1];
+                sMessage = sRawMessage = mData['info'][1];
                 if (mConfig['timeStamp']):
                     sTime = time.strftime("(%H:%M:%S)");
                 else:
@@ -261,8 +267,18 @@ def handleDanmu(bContent):
                     sMessage = colour(sMessage, aColour[1]);
                 if (mConfig['singleLine']):
                     display('{1} {0}: {2}'.format(sSender, sTime, sMessage));
+                    if (localFile):
+                        localFile.write('{1} {0}: {2}\n'.format(
+                            sRawSender, sTime, sRawMessage
+                        ));
+                        #localFile.flush();
                 else:
                     display('{0}: {1}\n    {2}'.format(sSender, sTime, sMessage));
+                    if (localFile):
+                        localFile.write('{0}: {1}\n    {2}\n'.format(
+                            sRawSender, sTime, sRawMessage
+                        ));
+                        #localFile.flush();
             elif (mData['cmd'].lower() == 'send_gift'):
                 # gift message
                 if (mConfig['gift']):
@@ -297,6 +313,7 @@ def main():
     global log;
     global nRoom;
     global aColour;
+    global localFile;
     # use crafted display function to ease the migration from python3 to python2 and to accommodate to different terminal coding in different system
     # display1 is normal displayer, while display2 is a separate displayer running in special thread, implementing the display interval
     # in each case, display1 shall be a instant displayer; thus, use display1 to output diagnostic message
@@ -337,11 +354,17 @@ def main():
     while running:
         try:
             try:
-                sServer, nRoom = getRoom(nRoom);
+                sServer, nRoom, sHoster, sTitle = getRoom(nRoom);
             except urllib.error.HTTPError as e:
                 display1('找不到该房间，请重新输入房间号');
                 nRoom = int(input('room ID:'));
                 continue;
+            if (mConfig['write']):
+                sTime = time.strftime('%m%d_%H%M%S-');
+                sName = sHoster + '-' + sTitle;
+                sName = re.sub(r'[^\w_\-.()]', '-', sName);
+                sFileName = '{}{}.txt'.format(sTime, sName);
+                localFile = open(sFileName, 'a', encoding='utf-8');
             log('弹幕服务器 ' + sServer);
             aAddr1 = (sServer, 788);
             sock1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM);
@@ -395,6 +418,9 @@ def main():
             alive = False;
             if ('interval' in locals()): interval.stop();
             if ('sock1' in locals()): sock1.close();
+            if (localFile):
+                display1('弹幕已保存到文件 {}'.format(localFile.name));
+                localFile.close();
 
 if __name__ == '__main__':
     main();
