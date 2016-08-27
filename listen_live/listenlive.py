@@ -79,32 +79,42 @@ def monitor(nRoom):
     sServer, nRoom, aInfo = getRoom(nRoom);
 
     while (running):
-        with urlopen('http://live.bilibili.com/live/getInfo?roomid=' + str(nRoom)) as f:
+        with urlopen(sAPI2 + str(nRoom)) as f:
             bData = f.read();
-            mData = json.loads(bData.decode());
-            sStatus = mData['data']['_status'];
-            display(time.ctime(), end=' ');
-            if (sStatus == 'on'):
-                print(sStatus);
-                sCom = 'you-get ';
-                if (args.verbose):
-                    sCom += '-d ';
-                if (args.down):
-                    sTime = time.strftime('%m%d_%H%M%S-');
-                    sName = aInfo[0] + '-' + aInfo[1];
-                    sName = re.sub(r'[^\w_\-.()]', '-', sName);
-                    sCom += '-O "{}{}.flv" '.format(sTime, sName);
-                    sCom += 'http://live.bilibili.com/' + str(nRoom);
-                    print(sCom);
+        mData = json.loads(bData.decode());
+        sStatus = mData['data']['_status'];
+        display(time.ctime(), end=' ');
+        if (sStatus == 'on'):
+            print(sStatus);
+            sCom = 'you-get ';
+            if (args.verbose):
+                sCom += '-d ';
+            if (args.down):
+                sTime = time.strftime('%m%d_%H%M%S-');
+                sName = aInfo[0] + '-' + aInfo[1];
+                sName = re.sub(r'[^\w_\-.()]', '-', sName);
+                sCom += '-O "{}{}.flv" '.format(sTime, sName);
+                sCom += 'http://live.bilibili.com/' + str(nRoom);
+                print(sCom);
+                while sStatus == 'on':
                     os.system(sCom);
-                else:
-                    sCom += '-p mpv http://live.bilibili.com/' + str(nRoom);
-                    print(sCom);
-                    os.system(sCom);
+                    with urlopen(sAPI2 + str(nRoom)) as f:
+                        bData = f.read();
+                    mData = json.loads(bData.decode());
+                    sStatus = mData['data']['_status'];
             else:
-                print('live off');
-            display(time.ctime(), end=' ');
-            print('end');
+                sCom += '-p mpv http://live.bilibili.com/' + str(nRoom);
+                print(sCom);
+                while sStatus == 'on':
+                    os.system(sCom);
+                    with urlopen(sAPI2 + str(nRoom)) as f:
+                        bData = f.read();
+                    mData = json.loads(bData.decode());
+                    sStatus = mData['data']['_status'];
+        else:
+            print('live off');
+        display(time.ctime(), end=' ');
+        print('end');
         time.sleep(30);
 
 def main():
