@@ -64,6 +64,8 @@ alive = False;
 aColour = [3, 17];
 # the local file object to be written
 localFile = None;
+# the list of messages to be blocked
+aBlock = [];
 
 # the default programme configuration
 mConfig = { 
@@ -76,7 +78,8 @@ mConfig = {
         'singleLine': 0,
         'timeStamp': 1,
         'verbose': 0,
-        'write': 0
+        'write': 0,
+        'block': 1
 }
 
 # explanation of configuration option, of format:
@@ -91,7 +94,8 @@ mExplain = {
         'singleLine': ('whether to display every danmu message in a single line; should be equivalent to 0 or 1; defaults to 0 meaning displaying message in two lines', 's'),
         'timeStamp': ('whether to show receiving time of danmu message; should be equivalent to 0 or 1; defaluts to 1 meaning that, appending time stamp to sender name while singleLine is 0, and prepend time stamp to sender namer while singleLine is 1', 't'),
         'verbose': ('whether to display diagnostic information to console; should be equivalent to 0 or 1; defaults to 0', 'v'),
-        'write': ('whether to write danmu message to a local file, whose name will consists of the date, the hoster name and the room title; should be equivalent to 0 or 1; defaults to 0', 'w')
+        'write': ('whether to write danmu messages to a local file, whose name will consists of the time, the hoster name and the room title; should be equivalent to 0 or 1; defaults to 0', 'w'),
+        'block': ('whether to block flooding messages induced by toy television or tempo storm; should be equivalent to 0 or 1; defaults to 1', 'b')
 }
 
 # type specification of configuration option
@@ -105,7 +109,8 @@ mMap = {
         'singleLine': lambda x: int(x),
         'timeStamp': lambda x: int(x),
         'verbose': lambda x: int(x),
-        'write': lambda x: int(x)
+        'write': lambda x: int(x),
+        'block': lambda x: int(x)
 }
 
 # receive CR from stdin to send heartbeat message, which induce a online count response
@@ -231,6 +236,7 @@ def handleDanmu(bContent):
     global nRoom;
     global aColour;
     global localFile;
+    global aBlock;
     if (bContent[0:4] == unhexlify('00100001')):
         # control info
         if (bContent[4:8] == unhexlify('00000003')):
@@ -249,13 +255,23 @@ def handleDanmu(bContent):
             if (mData['cmd'].lower() in ['welcome', 'sys_gift', 'sys_msg', 'send_top', 'add_vt_member', 'bet_bettor', 'bet_banker']):
                 # welcome message | system-wide gift message 1 | system-wide gift message 2 | virtual audience?
                 pass;
-            elif (mData['cmd'].lower() == 'special_gift'):
-                # stupid danmu storm; may add a functionality to block storming danmu message in future
+            elif (mData['cmd'].lower() == 'special_gift' and aBlock):
+                # add danmu storm message to blocked list
+                mStorm = mData['data'].get('39');
+                if (mStorm):
+                    if (mStorm['action'] == 'start'):
+                        aBlock.append(mStorm['content']);
+                    if (mStorm['action'] == 'end'):
+                        if (mStorm['content'] in aBlock[2:]):
+                            aBlock[2:].remove(mStorm['content']);
                 pass;
             elif (mData['cmd'].lower() == 'danmu_msg'):
                 # text message
                 sSender = sRawSender = mData['info'][2][1];
                 sMessage = sRawMessage = mData['info'][1];
+                # block flooding message
+                if (sMessage in aBlock):
+                    return;
                 if (mConfig['timeStamp']):
                     sTime = time.strftime("(%H:%M:%S)");
                 else:
@@ -291,8 +307,10 @@ def handleDanmu(bContent):
                 display('开启{}禁言 {} 秒'.format(sType, mData['countdown']));
             elif (mData['cmd'].lower() == 'room_silent_off'):
                 display('全局禁言已取消');
+            elif (mData['cmd'].lower() == 'live'):
+                display('直播开启');
             elif (mData['cmd'].lower() == 'preparing'):
-                display('直播已结束');
+                display('直播结束');
             else:
                 # record unknown cmd field in response message, that possibly has been overlooked by me or newly added by bilibili
                 with open('unknown_message.txt', 'a', encoding='utf-8') as f2:
@@ -314,6 +332,7 @@ def main():
     global nRoom;
     global aColour;
     global localFile;
+    global aBlock;
     # use crafted display function to ease the migration from python3 to python2 and to accommodate to different terminal coding in different system
     # display1 is normal displayer, while display2 is a separate displayer running in special thread, implementing the display interval
     # in each case, display1 shall be a instant displayer; thus, use display1 to output diagnostic message
@@ -347,6 +366,11 @@ def main():
         log = display1;
     else:
         def log(*aArgs, **mArgs): pass;
+    if (mConfig['block']):
+        # it seems that two format of flooding messages are existing
+        aBlock = ['bilibili-(゜-゜)つロ乾杯~',
+                  '- ( ゜- ゜)つロ 乾杯~ - bilibili'
+        ];
     log(mConfig);
     nRoom = mConfig['nRoom'] or int(input('room ID:'));
     running = True;
