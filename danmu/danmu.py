@@ -66,6 +66,8 @@ aColour = [3, 17];
 localFile = None;
 # the list of messages to be blocked
 aBlock = [];
+# the indicator of online counter notification; 0 means not notifying temporarily; 1 means notifying next time; 2 means notifying constantly
+notifyMode = 2;
 
 # the default programme configuration
 mConfig = { 
@@ -79,7 +81,8 @@ mConfig = {
         'timeStamp': 1,
         'verbose': 0,
         'write': 0,
-        'block': 1
+        'block': 1,
+        'notify': 1
 }
 
 # explanation of configuration option, of format:
@@ -95,7 +98,8 @@ mExplain = {
         'timeStamp': ('whether to show receiving time of danmu message; should be equivalent to 0 or 1; defaluts to 1 meaning that, appending time stamp to sender name while singleLine is 0, and prepend time stamp to sender namer while singleLine is 1', 't'),
         'verbose': ('whether to display diagnostic information to console; should be equivalent to 0 or 1; defaults to 0', 'v'),
         'write': ('whether to write danmu messages to a local file, whose name will consists of the time, the hoster name and the room title; should be equivalent to 0 or 1; defaults to 0', 'w'),
-        'block': ('whether to block flooding messages induced by toy television or tempo storm; should be equivalent to 0 or 1; defaults to 1', 'b')
+        'block': ('whether to block flooding messages induced by toy television or tempo storm; should be equivalent to 0 or 1; defaults to 1', 'b'),
+        'notify': ('whether to notify the number of online audiences every 30 seconds; should be equivalent to 0 or 1; defaults to 1', 'n')
 }
 
 # type specification of configuration option
@@ -110,17 +114,21 @@ mMap = {
         'timeStamp': lambda x: int(x),
         'verbose': lambda x: int(x),
         'write': lambda x: int(x),
-        'block': lambda x: int(x)
+        'block': lambda x: int(x),
+        'notify': lambda x: int(x)
 }
 
 # receive CR from stdin to send heartbeat message, which induce a online count response
 def notify(beatClock):
     'beatClock is the thread event instance which is involved in sending of heartbeat'
     global alive;
-    global nPop
+    global nPop;
+    global notifyMode;
     try:
         while alive:
             input();
+            if (notifyMode == 0):
+                notifyMode = 1;
             beatClock.set();
     except EOFError:
         beatClock.set();
@@ -237,13 +245,17 @@ def handleDanmu(bContent):
     global aColour;
     global localFile;
     global aBlock;
+    global notifyMode;
     if (bContent[0:4] == unhexlify('00100001')):
         # control info
         if (bContent[4:8] == unhexlify('00000003')):
             # online counter
             assert (bContent[8:12] == unhexlify('00000001'));
             nPop = struct.unpack('>I', bContent[12:16])[0];
-            display1('在线数:',nPop, ' 房间号:', nRoom, sep='');
+            if (notifyMode):
+                display1('在线数:',nPop, ' 房间号:', nRoom, sep='');
+                if (notifyMode == 1):
+                    notifyMode = 0;
         else:
             log('unknown control info', bContent, sep='\n');
     elif (bContent[0:4] == unhexlify('00100000')):
@@ -333,6 +345,7 @@ def main():
     global aColour;
     global localFile;
     global aBlock;
+    global notifyMode;
     # use crafted display function to ease the migration from python3 to python2 and to accommodate to different terminal coding in different system
     # display1 is normal displayer, while display2 is a separate displayer running in special thread, implementing the display interval
     # in each case, display1 shall be a instant displayer; thus, use display1 to output diagnostic message
@@ -371,6 +384,10 @@ def main():
         aBlock = ['bilibili-(゜-゜)つロ乾杯~',
                   '- ( ゜- ゜)つロ 乾杯~ - bilibili'
         ];
+    if (mConfig['notify']):
+        notifyMode = 2;
+    else:
+        notifyMode = 1;
     log(mConfig);
     nRoom = mConfig['nRoom'] or int(input('room ID:'));
     running = True;
