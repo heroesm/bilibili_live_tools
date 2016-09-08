@@ -274,8 +274,7 @@ def handleDanmu(bContent):
                     if (mStorm['action'] == 'start'):
                         aBlock.append(mStorm['content']);
                     if (mStorm['action'] == 'end'):
-                        if (mStorm['content'] in aBlock[2:]):
-                            aBlock[2:].remove(mStorm['content']);
+                        aBlock[2:] = aBlock[3:];
                 pass;
             elif (mData['cmd'].lower() == 'danmu_msg'):
                 # text message
