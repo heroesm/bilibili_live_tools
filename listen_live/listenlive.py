@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 import os
 import urllib.request
+import urllib.error
 from urllib.request import urlopen
 import json
 import time
@@ -30,7 +31,7 @@ def getRoom(nRoom):
             nRoom = int(re.search(b'var ROOMID = (\\d+)?;', bData).group(1));
             return nRoom
         finally:
-            f1.close();
+            if ('f1' in locals()): f1.close();
     try:
         f1 = urllib.request.urlopen(sAPI1 + str(nRoom));
         bRoomInfo = f1.read();
@@ -144,8 +145,18 @@ def main():
             if ('f1' in locals()): f1.close();
     if (not nRoom):
         nRoom = int(input('room ID:'));
-    monitor(nRoom);
-
+    while running:
+        try:
+            monitor(nRoom);
+        except urllib.error.HTTPError as e:
+#            import pdb 
+#            pdb.set_trace()
+            if (e.code == 404):
+                display('房间不存在');
+                running = False;
+            else:
+                display('网络错误', e,'程序重启', sep='\n');
+                continue;
 
 if __name__ == '__main__':
     try:
