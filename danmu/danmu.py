@@ -267,15 +267,17 @@ def handleDanmu(bContent):
             if (mData['cmd'].lower() in ['welcome', 'sys_gift', 'sys_msg', 'send_top', 'add_vt_member', 'bet_bettor', 'bet_banker']):
                 # welcome message | system-wide gift message 1 | system-wide gift message 2 | virtual audience?
                 pass;
-            elif (mData['cmd'].lower() == 'special_gift' and aBlock):
+            elif (mData['cmd'].lower() == 'special_gift'):
                 # add danmu storm message to blocked list
-                mStorm = mData['data'].get('39');
-                if (mStorm):
-                    if (mStorm['action'] == 'start'):
-                        aBlock.append(mStorm['content']);
-                    if (mStorm['action'] == 'end'):
-                        aBlock[2:] = aBlock[3:];
-                pass;
+                if (aBlock):
+                    mStorm = mData['data'].get('39');
+                    if (mStorm):
+                        if (mStorm['action'] == 'start'):
+                            aBlock.append(mStorm['content']);
+                        if (mStorm['action'] == 'end'):
+                            aBlock[2:] = aBlock[3:];
+                else:
+                    pass;
             elif (mData['cmd'].lower() == 'danmu_msg'):
                 # text message
                 sSender = sRawSender = mData['info'][2][1];

@@ -149,8 +149,6 @@ def main():
         try:
             monitor(nRoom);
         except urllib.error.HTTPError as e:
-#            import pdb 
-#            pdb.set_trace()
             if (e.code == 404):
                 display('房间不存在');
                 running = False;
