@@ -3,6 +3,7 @@ import os
 import urllib.request
 import urllib.error
 from urllib.request import urlopen
+import http.client
 import json
 import time
 import re
@@ -148,8 +149,8 @@ def main():
     while running:
         try:
             monitor(nRoom);
-        except urllib.error.HTTPError as e:
-            if (e.code == 404):
+        except (http.client.HTTPException, urllib.error.URLError, ConnectionError) as e:
+            if (isinstance(e, urllib.error.HTTPError) and e.code == 404):
                 display('房间不存在');
                 running = False;
             else:
