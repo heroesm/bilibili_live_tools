@@ -44,6 +44,8 @@ def getRoom(nRoom):
                 sep='\n');
         sServer = 'livecmt-1.bilibili.com';
     except urllib.error.HTTPError as e:
+        if (e.code != 404):
+            raise;
         nRoom = fetchRealRoom(nRoom);
         f1 = urllib.request.urlopen(sAPI1 + str(nRoom));
         bRoomInfo = f1.read();
