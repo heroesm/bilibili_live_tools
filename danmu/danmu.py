@@ -68,6 +68,8 @@ localFile = None;
 aBlock = [];
 # the indicator of online counter notification; 0 means not notifying temporarily; 1 means notifying next time; 2 means notifying constantly
 notifyMode = 2;
+# the threading event corresonding to the manual activating of the online-counter
+beatClock = None;
 
 # the default programme configuration
 mConfig = { 
@@ -119,17 +121,18 @@ mMap = {
 }
 
 # receive CR from stdin to send heartbeat message, which induce a online count response
-def notify(beatClock):
+def notify():
     'beatClock is the thread event instance which is involved in sending of heartbeat'
     global alive;
     global nPop;
     global notifyMode;
+    global beatClock;
     try:
         while alive:
             input();
             if (notifyMode == 0):
                 notifyMode = 1;
-            beatClock.set();
+            if (beatClock): beatClock.set();
     except EOFError:
         beatClock.set();
         # send the last heartbeat while quitting the programme, receiving immediate  response to prevent from being blocked by socket.recv or socketfile.read
@@ -347,6 +350,7 @@ def main():
     global localFile;
     global aBlock;
     global notifyMode;
+    global beatClock;
     # use crafted display function to ease the migration from python3 to python2 and to accommodate to different terminal coding in different system
     # display1 is normal displayer, while display2 is a separate displayer running in special thread, implementing the display interval
     # in each case, display1 shall be a instant displayer; thus, use display1 to output diagnostic message
@@ -435,14 +439,18 @@ def main():
             alive = True;
             bHeartBeat = struct.pack('>IIII', 0x10, 0x100001, 0x2, 0x1);
             sock1.sendall(bHeartBeat);
+            # send heartbeat message per 30 seconds
             interval = SetInterval(lambda:(sock1.sendall(bHeartBeat)), 30);
             interval.start();
-            # send heartbeat message per 30 seconds
-            t = threading.Thread(target=notify, args=(interval.clock,));
-            t.daemon = 1;
-            t.start();
             # capture CR in stdin to send hearbeat in order to fetch freshed online count
-            handler1(sock1);
+            if (not beatClock):
+                beatClock = interval.clock;
+                t = threading.Thread(target=notify);
+                t.daemon = 1;
+                t.start();
+            else:
+                beatClock = interval.clock;
+            handler2(sock1);
         except BaseException as e:
             if (isinstance(e, KeyboardInterrupt)):
                 display1('程序退出');
