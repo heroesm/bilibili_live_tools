@@ -44,6 +44,7 @@ def getRoom(nRoom):
                 sep='\n');
         sServer = 'livecmt-1.bilibili.com';
     except urllib.error.HTTPError as e:
+        if ('f1' in locals()): f1.close();
         if (e.code != 404):
             raise;
         nRoom = fetchRealRoom(nRoom);
@@ -74,7 +75,7 @@ def getRoom(nRoom):
         raise;
         display(bRoomInfo);
     finally:
-        f1.close();
+        if ('f1' in locals()): f1.close();
     return sServer, nRoom, (sHoster, sTitle, sStatus);
 
 def monitor(nRoom):
@@ -92,25 +93,24 @@ def monitor(nRoom):
             print(sStatus);
             sCom = 'you-get ';
             if (args.verbose):
-                sCom += '-d ';
+                sCom += ' -d';
             if (args.down):
-                sTime = time.strftime('%m%d_%H%M%S-');
                 sName = aInfo[0] + '-' + aInfo[1];
                 sName = re.sub(r'[^\w_\-.()]', '-', sName);
-                sCom += '-O "{}{}.flv" '.format(sTime, sName);
-                sCom += 'http://live.bilibili.com/' + str(nRoom);
-                print(sCom);
                 while sStatus == 'on':
-                    os.system(sCom);
+                    sTime = time.strftime('%m%d_%H%M%S-');
+                    sOpt = ' -O "{}{}.flv" http://live.bilibili.com/{}'.format(sTime, sName, nRoom);
+                    print(sCom + sOpt);
+                    os.system(sCom + sOpt);
                     with urlopen(sAPI2 + str(nRoom)) as f:
                         bData = f.read();
                     mData = json.loads(bData.decode());
                     sStatus = mData['data']['_status'];
             else:
-                sCom += '-p mpv http://live.bilibili.com/' + str(nRoom);
-                print(sCom);
+                sOpt = ' -p mpv http://live.bilibili.com/{}'.format(nRoom);
+                print(sCom + sOpt);
                 while sStatus == 'on':
-                    os.system(sCom);
+                    os.system(sCom + sOpt);
                     with urlopen(sAPI2 + str(nRoom)) as f:
                         bData = f.read();
                     mData = json.loads(bData.decode());
@@ -156,7 +156,8 @@ def main():
                 display('房间不存在');
                 running = False;
             else:
-                display('网络错误', e,'程序重启', sep='\n');
+                display('网络错误', e,'程序将在十秒后重启', sep='\n');
+                time.sleep(10);
                 continue;
 
 if __name__ == '__main__':
