@@ -1,4 +1,4 @@
-@namespace url(http://www.w4.org/1999/xhtml);
+@namespace url(http://www.w3.org/1999/xhtml);
 
 @-moz-document domain("live.bilibili.com") {
 /*    .message-history div{
@@ -15,9 +15,16 @@
     .super-gift-ctnr,
     .lottery-panel,
     #gift-msg-1000{
-        display: none;
+        display: none !important;
     }
     #chat-msg-list{
         height: 100%
+    }
+    .guard-msg {
+        margin: 0 !important;
+        padding: 4px 5px !important;
+    }
+    .guard-msg:after {
+        display: none !important;
     }
 }
