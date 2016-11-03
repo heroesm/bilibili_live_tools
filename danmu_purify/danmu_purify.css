@@ -24,7 +24,7 @@
         margin: 0 !important;
         padding: 4px 5px !important;
     }
-    .guard-msg:after {
+    .guard-msg:before, .guard-msg:after {
         display: none !important;
     }
 }
