@@ -120,6 +120,10 @@ mMap = {
         'notify': lambda x: int(x)
 }
 
+class SocketDied(OSError):
+    # the socket connection to the danmu server has been closed
+    pass;
+
 # receive CR from stdin to send heartbeat message, which induce a online count response
 def notify():
     'beatClock is the thread event instance which is involved in sending of heartbeat'
@@ -203,7 +207,10 @@ def handler1(sock1):
     sock1.settimeout(None);
     try:
         fSock = sock1.makefile('rb');
-        nLength = struct.unpack('>I', fSock.read(4))[0];
+        bLength = fSock.read(4);
+        if (bLength == b''):
+            raise SocketDied;
+        nLength = struct.unpack('>I', bLength)[0];
         # the total length of the a single danmu message; the next 4 bytes is the header length
         bContent = fSock.read(nLength - 4);
         if (hexlify(bContent) == b'001000010000000800000001'): 
@@ -211,7 +218,10 @@ def handler1(sock1):
             display1('已接入弹幕服务器', '按回车显示在线人数', 'ctrl-c退出');
             while alive:
                 try:
-                    nLength = struct.unpack('>I', fSock.read(4))[0];
+                    bLength = fSock.read(4);
+                    if (bLength == b''):
+                        raise SocketDied;
+                    nLength = struct.unpack('>I', bLength)[0];
                     bContent = fSock.read(nLength - 4);
                     handleDanmu(bContent);
                 except TimeoutError as e:
@@ -232,14 +242,17 @@ def handler2(sock1):
         r, w, e = select.select([sock1], [], []);
         if (sock1 in r):
             # the danmu server may respond randomly splited danmu messgae aggregation, so using buffer to joint separated danmu message is necessary
-            if (len(bBuff) == 0):
-                bBuff = sock1.recv(4);
-                nLength = struct.unpack('>I', bBuff)[0];
-            bBuff += sock1.recv(nLength - len(bBuff));
-            if (len(bBuff) < nLength):
-                continue;
-            handleDanmu(bBuff[4:]);
-            bBuff = b'';
+            if (len(bBuff) < 4):
+                bBuff += sock1.recv(4 - len(bBuff));
+                if (len(bBuff) == 0):
+                    raise SocketDied;
+                if (len(bBuff) == 4):
+                    nLength = struct.unpack('>I', bBuff)[0];
+            else:
+                bBuff += sock1.recv(nLength - len(bBuff));
+                if (len(bBuff) == nLength):
+                    handleDanmu(bBuff[4:]);
+                    bBuff = b'';
 
 def handleDanmu(bContent):
     'deal with separate danmu message and output them accordingly'
@@ -402,9 +415,12 @@ def main():
             try:
                 sServer, nRoom, sHoster, sTitle = getRoom(nRoom);
             except urllib.error.HTTPError as e:
-                display1('找不到该房间，请重新输入房间号');
-                nRoom = int(input('room ID:'));
-                continue;
+                if (e.code == 404):
+                    display1('找不到该房间，请重新输入房间号');
+                    nRoom = int(input('room ID:'));
+                    continue;
+                else:
+                    raise;
             if (mConfig['write']):
                 sTime = time.strftime('%m%d_%H%M%S-');
                 sName = sHoster + '-' + sTitle;
@@ -426,7 +442,7 @@ def main():
                 log('弹幕服务器 ' + sServer);
                 aAddr1 = (sServer, 788);
                 sock1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM);
-                sock1.connect(); 
+                sock1.connect(aAddr1); 
             log('地址为 ', *sock1.getpeername());
             nUid = int(100000000000000 + 200000000000000*random.random());
             # a random meaningless user ID
@@ -451,12 +467,19 @@ def main():
             else:
                 beatClock = interval.clock;
             handler2(sock1);
+        except TimeoutError as e:
+            display1('连接超时，重试...');
+            continue;
+        except SocketDied as e:
+            display1('连接被关闭，程序重启...');
+            continue;
         except BaseException as e:
             if (isinstance(e, KeyboardInterrupt)):
                 display1('程序退出');
                 running = False;
             elif (sys.version[0] == '3' and isinstance(e, ConnectionResetError)):
                 # ConnectionResetError is not supported in python2
+                display1(e);
                 display1('到服务器的连接被断开，尝试重新连接...');
                 continue;
             else:
