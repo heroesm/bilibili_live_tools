@@ -280,7 +280,7 @@ def handleDanmu(bContent):
             assert (bContent[8:12] == unhexlify('00000000'));
             mData = json.loads(bContent[12:].decode('utf-8'));
             #if (re.match(r'welcome|sys_gift|sys_msg|send_top|add_vt_member|bet_bettor|bet_banker', mData['cmd'].lower())):
-            if (mData['cmd'].lower() in ['welcome', 'sys_gift', 'sys_msg', 'send_top', 'add_vt_member', 'bet_bettor', 'bet_banker']):
+            if (mData['cmd'].lower() in ['welcome', 'welcome_guard', 'sys_gift', 'sys_msg', 'send_top', 'add_vt_member', 'bet_bettor', 'bet_banker', 'tv_start', 'tv_end']):
                 # welcome message | system-wide gift message 1 | system-wide gift message 2 | virtual audience?
                 pass;
             elif (mData['cmd'].lower() == 'special_gift'):
@@ -290,8 +290,13 @@ def handleDanmu(bContent):
                     if (mStorm):
                         if (mStorm['action'] == 'start'):
                             aBlock.append(mStorm['content']);
-                        if (mStorm['action'] == 'end'):
-                            aBlock[2:] = aBlock[3:];
+                            cleanupTimer = threading.Timer(90,
+                                lambda: aBlock.pop(2) if (len(aBlock) > 2) else 0
+                            );
+                            cleanupTimer.daemon = True;
+                            cleanupTimer.start();
+                        #if (mStorm['action'] == 'end'):
+                        #    aBlock[2:] = aBlock[3:];
                 else:
                     pass;
             elif (mData['cmd'].lower() == 'danmu_msg'):
@@ -343,7 +348,7 @@ def handleDanmu(bContent):
             else:
                 # record unknown cmd field in response message, that possibly has been overlooked by me or newly added by bilibili
                 with open('unknown_message.txt', 'a', encoding='utf-8') as f2:
-                    f2.write('\n' + str(mData));
+                    f2.write('\n' + time.strftime("%m%d_%H%M%S-") + str(mData));
                 log(mData);
         else:
             log('unknown notification', bContent, sep='\n');
@@ -467,7 +472,7 @@ def main():
             else:
                 beatClock = interval.clock;
             handler2(sock1);
-        except TimeoutError as e:
+        except (socket.timeout, TimeoutError) as e:
             display1('连接超时，重试...');
             continue;
         except SocketDied as e:
