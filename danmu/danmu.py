@@ -41,6 +41,9 @@ import select
 from configParser import ConfigParser
 from utility import Displayer, SetInterval
 
+#import colorama
+#colorama.init()
+
 sAPI0 = 'http://space.bilibili.com/ajax/live/getLive?mid='
 # using user ID to get the live status and the live room ID of that user
 sAPI1 = 'http://live.bilibili.com/api/player?id=cid:';
@@ -89,7 +92,7 @@ mConfig = {
 
 # explanation of configuration option, of format:
 # <key> : (<description>, <shorthand>)
-# <shorthand> could equal False meaning absence of shorthand, but the tuble must have two items
+# <shorthand> could equal False meaning absence of shorthand, but the tuple must have two items
 mExplain = {
         'gift': ('whether to display gift notification; should be equivalent to 0 or 1', 'g'),
         'colour': ('whether to use colour scheme, not fully supported in windows; should be equivalent to 0 or 1 ### Note that colour is implemented using ANSI escape character, which is not completedly supported in windows, meaning that it may not work by running it directly or with powershell. Run the programme through cmd(which support win32api) to bypass the problem. Otherwise set it to 0 to roll back to monochrome mode.', 'c'),
@@ -191,7 +194,7 @@ def getRoom(nRoom):
         sHoster = mData['data']['ANCHOR_NICK_NAME'];
         sTitle = mData['data']['ROOMTITLE'];
         sStatus = mData['data']['LIVE_STATUS'];
-        display1('播主：{}\n房间：{}\n状态：{}'.format(sHoster, sTitle, sStatus))
+        display1('播主：{}\n房间：{}\n状态：{}'.format(sHoster, sTitle, sStatus));
     except Exception as e:
         # not expected to happen
         display1('获取房间信息失败');
@@ -290,6 +293,7 @@ def handleDanmu(bContent):
                     if (mStorm):
                         if (mStorm['action'] == 'start'):
                             aBlock.append(mStorm['content']);
+                            display('节奏风暴： ' + mStorm['content']);
                             cleanupTimer = threading.Timer(90,
                                 lambda: aBlock.pop(2) if (len(aBlock) > 2) else 0
                             );
@@ -332,7 +336,11 @@ def handleDanmu(bContent):
             elif (mData['cmd'].lower() == 'send_gift'):
                 # gift message
                 if (mConfig['gift']):
-                    display(mData['data']['uname'], '赠送', mData['data']['num'], mData['data']['giftName']);
+                    display( '{0} 赠送 {1} {2}'.format(
+                        mData['data']['uname'],
+                        mData['data']['num'],
+                        mData['data']['giftName']
+                    ));
             elif (mData['cmd'].lower() == 'room_block_msg'):
                 display('{} 已被禁言'.format(mData['uname']));
             elif (mData['cmd'].lower() == 'room_silent_on'):
