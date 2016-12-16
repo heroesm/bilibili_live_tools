@@ -1,5 +1,6 @@
 #! /usr/bin/env python3
 import os
+import sys
 import urllib.request
 import urllib.error
 from urllib.request import urlopen
@@ -9,6 +10,7 @@ import time
 import re
 import socket
 import argparse
+import threading
 
 sAPI0 = 'http://space.bilibili.com/ajax/live/getLive?mid='
 sAPI1 = 'http://live.bilibili.com/api/player?id=cid:';
@@ -78,7 +80,7 @@ def getRoom(nRoom):
         if ('f1' in locals()): f1.close();
     return sServer, nRoom, (sHoster, sTitle, sStatus);
 
-def monitor(nRoom):
+def monitor(nRoom, wait):
     global args;
     global running;
     sServer, nRoom, aInfo = getRoom(nRoom);
@@ -102,6 +104,7 @@ def monitor(nRoom):
                     sOpt = ' -O "{}{}.flv" http://live.bilibili.com/{}'.format(sTime, sName, nRoom);
                     print(sCom + sOpt);
                     os.system(sCom + sOpt);
+                    wait(1);
                     with urlopen(sAPI2 + str(nRoom)) as f:
                         bData = f.read();
                     mData = json.loads(bData.decode());
@@ -111,6 +114,7 @@ def monitor(nRoom):
                 print(sCom + sOpt);
                 while sStatus == 'on':
                     os.system(sCom + sOpt);
+                    wait(1);
                     with urlopen(sAPI2 + str(nRoom)) as f:
                         bData = f.read();
                     mData = json.loads(bData.decode());
@@ -119,7 +123,8 @@ def monitor(nRoom):
             print('live off');
         display(time.ctime(), end=' ');
         print('end');
-        time.sleep(30);
+        wait(30);
+        #time.sleep(30);
 
 def main():
     global args;
@@ -148,16 +153,21 @@ def main():
             if ('f1' in locals()): f1.close();
     if (not nRoom):
         nRoom = int(input('room ID:'));
+    if (sys.platform == 'win32'):
+        wait = time.sleep;
+    else:
+        wait = threading.Event().wait;
     while running:
         try:
-            monitor(nRoom);
-        except (http.client.HTTPException, urllib.error.URLError, ConnectionError) as e:
+            monitor(nRoom, wait);
+        except (http.client.HTTPException, urllib.error.URLError, ConnectionError, json.JSONDecodeError) as e:
             if (isinstance(e, urllib.error.HTTPError) and e.code == 404):
                 display('房间不存在');
                 running = False;
             else:
                 display('网络错误', e,'程序将在十秒后重启', sep='\n');
-                time.sleep(10);
+                wait(10);
+                #time.sleep(10);
                 continue;
 
 if __name__ == '__main__':
