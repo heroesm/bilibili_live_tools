@@ -2,7 +2,7 @@
 // @name        bilibili notify
 // @namespace   heroesm
 // @include     http://live.bilibili.com/feed/getList/1
-// @version     1.0.1
+// @version     1.0.2
 // @grant       none
 // 
 // ==/UserScript==
@@ -105,7 +105,11 @@ function main(){
         Obj = JSON.parse(document.body.childNodes[0].textContent.slice(1,-2));
         build();
         Data = Obj.data;
-        if(Data.count>0) {
+        if(Obj.code == -101){
+            document.body.insertAdjacentHTML('beforeend', '<br /><br />未登录');
+            document.title = '未登录';
+        }
+        else if(Data.count>0) {
             document.title = "(！)有" + Data.count + "个直播";
             for(var x=0; x<Data.count; x++){
                 item = Data.list[x];
