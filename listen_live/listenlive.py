@@ -1,4 +1,5 @@
 #! /usr/bin/env python3
+# -*- coding: UTF-8 -*-
 import os
 import sys
 import urllib.request
@@ -11,13 +12,35 @@ import re
 import socket
 import argparse
 import threading
+import subprocess
 
 sAPI0 = 'http://space.bilibili.com/ajax/live/getLive?mid='
 sAPI1 = 'http://live.bilibili.com/api/player?id=cid:';
 sAPI2 = 'http://live.bilibili.com/live/getInfo?roomid=';
-
+sAPI3 = 'http://live.bilibili.com/api/playurl?cid=';
 
 running = True;
+noYouget = 1;
+
+def resolveUrl(nRoom):
+      with urlopen(sAPI3 + str(nRoom)) as res:
+          bData = res.read();
+      sUrl = re.search(rb'<url><!\[CDATA\[(.+)\]\]><\/url>', bData).group  (1).decode('utf-8');
+      return sUrl;
+
+def downStream(sUrl, sFile):
+      with open(sFile, 'wb') as f:
+          with urlopen(sUrl, timeout=5) as res:
+              print('    starting download from:\n{}\n    to:\n{}'
+                      .format(sUrl, sFile));
+              nSize = 0;
+              bBuffer = res.read(1024 * 256);
+              while bBuffer:
+                  f.write(bBuffer);
+                  nSize += len(bBuffer);
+                  sys.stdout.write('\r{:<4} MB downloaded'.format(nSize/1024/  1024));
+                  sys.stdout.flush();
+                  bBuffer = res.read(1024 * 256);
 
 def display(*args, **kargs):
     try:
@@ -83,6 +106,7 @@ def getRoom(nRoom):
 def monitor(nRoom, wait):
     global args;
     global running;
+    global noYouget;
     sServer, nRoom, aInfo = getRoom(nRoom);
 
     while (running):
@@ -102,8 +126,12 @@ def monitor(nRoom, wait):
                 while sStatus == 'on':
                     sTime = time.strftime('%m%d_%H%M%S-');
                     sOpt = ' -O "{}{}.flv" http://live.bilibili.com/{}'.format(sTime, sName, nRoom);
-                    print(sCom + sOpt);
-                    os.system(sCom + sOpt);
+                    if(noYouget):
+                        sUrl = resolveUrl(nRoom);
+                        downStream(sUrl, '{}{}.flv'.format(sTime, sName));
+                    else:
+                        print(sCom + sOpt);
+                        os.system(sCom + sOpt);
                     wait(1);
                     with urlopen(sAPI2 + str(nRoom)) as f:
                         bData = f.read();
@@ -111,9 +139,15 @@ def monitor(nRoom, wait):
                     sStatus = mData['data']['_status'];
             else:
                 sOpt = ' -p mpv http://live.bilibili.com/{}'.format(nRoom);
-                print(sCom + sOpt);
                 while sStatus == 'on':
-                    os.system(sCom + sOpt);
+                    if(noYouget):
+                        sUrl = resolveUrl(nRoom);
+                        print('mpv ' + sUrl);
+                        subprocess.run(['mpv', sUrl]);
+                        print('mpv exited.');
+                    else:
+                        print(sCom + sOpt);
+                        os.system(sCom + sOpt);
                     wait(1);
                     with urlopen(sAPI2 + str(nRoom)) as f:
                         bData = f.read();
@@ -129,6 +163,7 @@ def monitor(nRoom, wait):
 def main():
     global args;
     global running;
+    global noYouget;
     parser1 = argparse.ArgumentParser(description='use you-get to monitor and download bilibili live');
     group1 = parser1.add_mutually_exclusive_group()
     group1.add_argument('-r', '--room', type=int, help='the room ID');
@@ -138,6 +173,7 @@ def main():
     group2.add_argument('-p', '--play', action='store_true', help='use combination of you-get and mpv to play live stream');
     parser1.add_argument('-v', '--verbose', action='store_true', help='show you-get debug info');
     args = parser1.parse_args();
+    #noYouget = subprocess.run('you-get --version', shell=1).returncode;
     nRoom = None;
     if (args.room):
         nRoom = args.room;
