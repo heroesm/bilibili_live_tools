@@ -23,24 +23,30 @@ running = True;
 noYouget = 1;
 
 def resolveUrl(nRoom):
-      with urlopen(sAPI3 + str(nRoom)) as res:
-          bData = res.read();
-      sUrl = re.search(rb'<url><!\[CDATA\[(.+)\]\]><\/url>', bData).group  (1).decode('utf-8');
-      return sUrl;
+    with urlopen(sAPI3 + str(nRoom)) as res:
+        bData = res.read();
+    sUrl = re.search(rb'<url><!\[CDATA\[(.+)\]\]><\/url>', bData).group(1).decode('utf-8');
+    return sUrl;
 
 def downStream(sUrl, sFile):
-      with open(sFile, 'wb') as f:
-          with urlopen(sUrl, timeout=5) as res:
-              print('    starting download from:\n{}\n    to:\n{}'
-                      .format(sUrl, sFile));
-              nSize = 0;
-              bBuffer = res.read(1024 * 256);
-              while bBuffer:
-                  f.write(bBuffer);
-                  nSize += len(bBuffer);
-                  sys.stdout.write('\r{:<4} MB downloaded'.format(nSize/1024/  1024));
-                  sys.stdout.flush();
-                  bBuffer = res.read(1024 * 256);
+    try:
+        res = urlopen(sUrl, timeout=10);
+        f = open(sFile, 'wb');
+        display('    starting download from:\n{}\n    to:\n{}'
+                .format(sUrl, sFile));
+        nSize = 0;
+        bBuffer = res.read(1024 * 256);
+        while bBuffer:
+            f.write(bBuffer);
+            nSize += len(bBuffer);
+            sys.stdout.write('\r{:<4.2f} MB downloaded'.format(nSize/1024/  1024));
+            sys.stdout.flush();
+            bBuffer = res.read(1024 * 256);
+    finally:
+        if ('res' in locals()): res.close();
+        if ('f' in locals()): f.close();
+        if (os.path.isfile(sFile) and os.path.getsize(sFile) == 0):
+            os.remove(sFile);
 
 def display(*args, **kargs):
     try:
@@ -114,9 +120,10 @@ def monitor(nRoom, wait):
             bData = f.read();
         mData = json.loads(bData.decode());
         sStatus = mData['data']['_status'];
-        display(time.ctime(), end=' ');
+        sAction = 'download' if args.down else 'play';
+        display(time.ctime(), end=' - ');
+        display('{} {}, status {}'.format(sAction, nRoom, sStatus));
         if (sStatus == 'on'):
-            print(sStatus);
             sCom = 'you-get ';
             if (args.verbose):
                 sCom += ' -d';
@@ -128,11 +135,12 @@ def monitor(nRoom, wait):
                     sOpt = ' -O "{}{}.flv" http://live.bilibili.com/{}'.format(sTime, sName, nRoom);
                     if(noYouget):
                         sUrl = resolveUrl(nRoom);
+                        display('    downloading room ' + str(nRoom));
                         downStream(sUrl, '{}{}.flv'.format(sTime, sName));
                     else:
-                        print(sCom + sOpt);
+                        display(sCom + sOpt);
                         os.system(sCom + sOpt);
-                    wait(1);
+                    wait(2);
                     with urlopen(sAPI2 + str(nRoom)) as f:
                         bData = f.read();
                     mData = json.loads(bData.decode());
@@ -142,21 +150,19 @@ def monitor(nRoom, wait):
                 while sStatus == 'on':
                     if(noYouget):
                         sUrl = resolveUrl(nRoom);
-                        print('mpv ' + sUrl);
+                        display('    playing room {}\nmpv {}'.format(nRoom, sUrl));
                         subprocess.run(['mpv', sUrl]);
-                        print('mpv exited.');
+                        display('mpv exited.');
                     else:
-                        print(sCom + sOpt);
+                        display(sCom + sOpt);
                         os.system(sCom + sOpt);
-                    wait(1);
+                    wait(2);
                     with urlopen(sAPI2 + str(nRoom)) as f:
                         bData = f.read();
                     mData = json.loads(bData.decode());
                     sStatus = mData['data']['_status'];
         else:
-            print('live off');
-        display(time.ctime(), end=' ');
-        print('end');
+            pass;
         wait(30);
         #time.sleep(30);
 
@@ -196,6 +202,10 @@ def main():
     while running:
         try:
             monitor(nRoom, wait);
+        except socket.timeout as e:
+            display('\n连接超时\n');
+            wait(5);
+            continue;
         except (http.client.HTTPException, urllib.error.URLError, ConnectionError, json.JSONDecodeError) as e:
             if (isinstance(e, urllib.error.HTTPError) and e.code == 404):
                 display('房间不存在');
@@ -211,4 +221,4 @@ if __name__ == '__main__':
         main();
     except KeyboardInterrupt as e:
         running = False;
-        print('exiting...');
+        display('\nexiting...');
