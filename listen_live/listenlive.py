@@ -68,7 +68,9 @@ def getRoom(nRoom):
         f1 = urllib.request.urlopen(sAPI1 + str(nRoom));
         bRoomInfo = f1.read();
         sRoomInfo = bRoomInfo.decode('utf-8');
-        sServer = re.search('<server>(.*?)</server>', sRoomInfo).group(1);
+        match = re.search('<server>(.*?)</server>', sRoomInfo);
+        assert match;
+        sServer = match.group(1);
     except socket.timeout as e:
         display('获取弹幕服务器时连接超时',
                 '尝试使用默认弹幕服务器地址',
@@ -82,7 +84,9 @@ def getRoom(nRoom):
         f1 = urllib.request.urlopen(sAPI1 + str(nRoom));
         bRoomInfo = f1.read();
         sRoomInfo = bRoomInfo.decode('utf-8');
-        sServer = re.search('<server>(.*?)</server>', sRoomInfo).group(1);
+        match = re.search('<server>(.*?)</server>', sRoomInfo);
+        assert match;
+        sServer = match.group(1);
     finally:
         if ('f1' in locals()): f1.close();
     if (not sServer):
@@ -206,7 +210,7 @@ def main():
             display('\n连接超时\n');
             wait(5);
             continue;
-        except (http.client.HTTPException, urllib.error.URLError, ConnectionError, json.JSONDecodeError) as e:
+        except (http.client.HTTPException, urllib.error.URLError, ConnectionError, TimeoutError, json.JSONDecodeError, AssertionError) as e:
             if (isinstance(e, urllib.error.HTTPError) and e.code == 404):
                 display('房间不存在');
                 running = False;
