@@ -174,6 +174,7 @@ def main():
     global args;
     global running;
     global noYouget;
+    socket.setdefaulttimeout(30);
     parser1 = argparse.ArgumentParser(description='use you-get to monitor and download bilibili live');
     group1 = parser1.add_mutually_exclusive_group()
     group1.add_argument('-r', '--room', type=int, help='the room ID');
