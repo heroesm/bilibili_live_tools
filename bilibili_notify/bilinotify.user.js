@@ -2,16 +2,21 @@
 // @name        bilibili notify
 // @namespace   heroesm
 // @include     http://live.bilibili.com/feed/getList/1
-// @version     1.0.2
+// @version     1.0.3
 // @grant       none
 // 
 // ==/UserScript==
 function main(){
+    "use strict";
+    
+    var sAltAPI = 'http://api.live.bilibili.com/ajax/feed/list?pagesize=30&page=1';
     var running = true;
     var rProFilter, rConFilter;
     var rFilter = /./;
     var sMode = 'pro';
     var aTimer = [];
+    var aAltRoomid = [];
+
     function prepare(){
         Document.prototype.$ = Document.prototype.querySelector;
         Element.prototype.$ = Element.prototype.querySelector;
@@ -58,7 +63,7 @@ function main(){
         }
     }
     function build(){
-        style = document.createElement('style');
+        var style = document.createElement('style');
         style.id = 'bilinotify_css';
         style.innerHTML = [
             'input[type=text] {width: 50%;}'
@@ -102,33 +107,42 @@ function main(){
         try{
             prepare();
         }catch(e){}
-        Obj = JSON.parse(document.body.childNodes[0].textContent.slice(1,-2));
+        var Obj = JSON.parse(document.body.childNodes[0].textContent.slice(1,-2));
         build();
-        Data = Obj.data;
+        var Data = Obj.data;
         if(Obj.code == -101){
             document.body.insertAdjacentHTML('beforeend', '<br /><br />未登录');
             document.title = '未登录';
         }
         else if(Data.count>0) {
             document.title = "(！)有" + Data.count + "个直播";
-            for(var x=0; x<Data.count; x++){
+            for(var x=0, item, sHTML; x<Data.count; x++){
                 item = Data.list[x];
+                if (aAltRoomid != null && aAltRoomid.indexOf(item.roomid) == -1){
+                    document.body.insertAdjacentHTML(
+                        'beforeend',
+                        'erroneous response from server'
+                    );
+                    document.title = '信息错误';
+                    throw 'erroneous response from server';
+                }
+                sHTML = ([
+                    '<br />',
+                    '<br />',
+                    '<div style="clear:both;">',
+                    '    <a style="float:left;" href="${item.link}"><img style="width:100px; height: 100px;" src="${item.face}"></img></a>',
+                    '    <div style="float:left;">',
+                    '        <span>${item.nickname}</span>',
+                    '        <br>',
+                    '        <a href="${item.link}">${item.roomname}</a>',
+                    '    </div>',
+                    '</div>'
+                ].join('\n').replace(/\$\{([^\}]+)\}/g, function(sMatch, sP1){
+                    return eval(sP1);
+                }));
                 document.body.insertAdjacentHTML(
                     'beforeend', 
-                    [
-                        '<br />',
-                        '<br />',
-                        '<div style="clear:both;">',
-                        '    <a style="float:left;" href="${item.link}"><img style="width:100px; height: 100px;" src="${item.face}"></img></a>',
-                        '    <div style="float:left;">',
-                        '        <span>${item.nickname}</span>',
-                        '        <br>',
-                        '        <a href="${item.link}">${item.roomname}</a>',
-                        '    </div>',
-                        '</div>'
-                    ].join('\n').replace(/\$\{([^\}]+)\}/g, function(sMatch, sP1){
-                        return eval(sP1);
-                    })
+                    sHTML
                 );
                 checkopen(item);
             }
@@ -139,9 +153,55 @@ function main(){
         }
 
         start();
+        console.log('ended');
+    }
+    function handleAltList(sRes){
+        var div = document.createElement('div');
+        div.textContent = sRes;
+        document.body.appendChild(div);
+        var Obj = JSON.parse(sRes.slice(1,-2));
+        if (Obj.code == 0){
+            var aRooms = Obj.data.list;
+            aRooms || (aRooms = []);
+            for (var i=0; i<aRooms.length; i++){
+                aAltRoomid.push(aRooms[i].roomid);
+            }
+        }
+        else{
+            aAltRoomid = null;
+        }
+    }
+    function getAltList(callback){
+        var xhr = new XMLHttpRequest();
+        xhr.timeout = 3000;
+        var sRes = '';
+        xhr.ontimeout = xhr.onerror = function(e){
+            console.log('timeout when getting alternative list')
+            callback();
+        };
+        xhr.onload = function(e){
+            try{
+                sRes = xhr.response;
+                callback(sRes);
+            }catch(e){
+                console.log(e.toString());
+                setTimeout(function(){
+                    window.location.reload();
+                }, 30000);
+            }
+        }
+        xhr.withCredentials = true;
+        xhr.open('get', sAltAPI)
+        xhr.send();
     }
     
-    run();
+    getAltList(function(sRes){
+        if (sRes){
+            handleAltList(sRes);
+        }
+        run();
+    });
+    //run();
 }
 
 try{
