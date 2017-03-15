@@ -62,6 +62,13 @@ def getRoom(nRoom):
             bData = f1.read(5000);
             nRoom = int(re.search(b'var ROOMID = (\\d+)?;', bData).group(1));
             return nRoom
+        except urllib.error.HTTPError as e:
+            if (e.code == 404):
+                display('房间不存在');
+                running = False;
+                sys.exit();
+            else:
+                raise
         finally:
             if ('f1' in locals()): f1.close();
     try:
@@ -135,7 +142,7 @@ def monitor(nRoom, wait):
                 sName = aInfo[0] + '-' + aInfo[1];
                 sName = re.sub(r'[^\w_\-.()]', '-', sName);
                 while sStatus == 'on':
-                    sTime = time.strftime('%m%d_%H%M%S-');
+                    sTime = time.strftime('%y%m%d_%H%M%S-');
                     sOpt = ' -O "{}{}.flv" http://live.bilibili.com/{}'.format(sTime, sName, nRoom);
                     if(noYouget):
                         sUrl = resolveUrl(nRoom);
@@ -212,14 +219,10 @@ def main():
             wait(5);
             continue;
         except (http.client.HTTPException, urllib.error.URLError, ConnectionError, TimeoutError, json.JSONDecodeError, AssertionError) as e:
-            if (isinstance(e, urllib.error.HTTPError) and e.code == 404):
-                display('房间不存在');
-                running = False;
-            else:
-                display('网络错误', e,'程序将在十秒后重启', sep='\n');
-                wait(10);
-                #time.sleep(10);
-                continue;
+            display('网络错误', e,'程序将在十秒后重启', sep='\n');
+            wait(10);
+            #time.sleep(10);
+            continue;
 
 if __name__ == '__main__':
     try:
