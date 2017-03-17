@@ -2,7 +2,7 @@
 // @name        bilibili notify
 // @namespace   heroesm
 // @include     http://live.bilibili.com/feed/getList/1
-// @version     1.0.3
+// @version     1.0.4
 // @grant       none
 // 
 // ==/UserScript==
@@ -43,11 +43,13 @@ function main(){
     }
     function update(){
         try{
-            localStorage.bilinotify_con = document.$('#con').value;
-            rConFilter = new RegExp(document.$('#con').value);
-            localStorage.bilinotify_pro = document.$('#pro').value;
-            rProFilter = new RegExp(document.$('#pro').value);
-        }catch(e){console.log(e);}
+            var sCon = document.$('#con').value.trim();
+            localStorage.bilinotify_con = sCon;
+            rConFilter = new RegExp(sCon);
+            var sPro = document.$('#pro').value.trim();
+            localStorage.bilinotify_pro = sPro;
+            rProFilter = new RegExp(sPro);
+        } catch(e){console.log(e);}
         localStorage.bilinotify_mod = sMode = document.$('input[name=mode]:checked').value;
         if (sMode == 'pro'){
             rFilter = rProFilter;
