@@ -25,7 +25,7 @@ class Displayer():
             self.thread.start();
             self.display = self.threadedDisplay;
     def commonDisplay(self, *aArgs, **mArgs):
-        type(self).lock.acquire(timeout=5);
+        type(self).lock.acquire();
         try:
             print(*aArgs, **mArgs);
         except UnicodeEncodeError as e:
