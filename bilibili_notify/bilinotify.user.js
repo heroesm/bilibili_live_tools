@@ -2,7 +2,7 @@
 // @name        bilibili notify
 // @namespace   heroesm
 // @include     http://live.bilibili.com/feed/getList/1
-// @version     1.0.4
+// @version     1.0.5
 // @grant       none
 // 
 // ==/UserScript==
@@ -179,7 +179,15 @@ function main(){
         var sRes = '';
         xhr.ontimeout = xhr.onerror = function(e){
             console.log('timeout when getting alternative list')
-            callback();
+            try{
+                aAltRoomid = null;
+                callback();
+            }catch(e){
+                console.log(e.toString());
+                setTimeout(function(){
+                    window.location.reload();
+                }, 30000);
+            }
         };
         xhr.onload = function(e){
             try{
