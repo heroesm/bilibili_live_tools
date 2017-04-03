@@ -2,7 +2,7 @@
 // @name        bilibili notify
 // @namespace   heroesm
 // @include     http://live.bilibili.com/feed/getList/1
-// @version     1.0.5
+// @version     1.0.5.1
 // @grant       none
 // 
 // ==/UserScript==
@@ -175,19 +175,14 @@ function main(){
     }
     function getAltList(callback){
         var xhr = new XMLHttpRequest();
-        xhr.timeout = 3000;
+        xhr.timeout = 5000;
         var sRes = '';
         xhr.ontimeout = xhr.onerror = function(e){
-            console.log('timeout when getting alternative list')
-            try{
-                aAltRoomid = null;
-                callback();
-            }catch(e){
-                console.log(e.toString());
-                setTimeout(function(){
-                    window.location.reload();
-                }, 30000);
-            }
+            console.log('timeout when getting alternative list');
+            setTimeout(function(){
+                window.location.reload();
+            }, 5000);
+
         };
         xhr.onload = function(e){
             try{
