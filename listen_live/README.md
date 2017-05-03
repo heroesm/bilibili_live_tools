@@ -1,10 +1,9 @@
 # bilibili直播监听
 
 ## 简介
-该python脚本按照所给的bilibili直播房间号或播主ID监听其直播状态，当对方开启直播时调用you-get进行下载，或配合mpv进行观看
+该python脚本按照所给的bilibili直播房间号或播主ID监听其直播状态，当对方开启直播时进行下载(-d)，或配合mpv进行观看(默认选项，或使用-p参数)，或以视频流地址为参数执行指定命令(-c)
 
 ## 需求
-* 安装you-get以下载直播流 `sudo -H pip3 install you-get` (注：因最近的bilibili直播的改动导致you-get失效，我添加了直接下载直播视频流的方法，现在该脚本不需依赖于you-get也可运行了）
 * 安装mpv以直接观看直播
 
 ## 使用
