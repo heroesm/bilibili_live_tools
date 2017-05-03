@@ -19,8 +19,10 @@ sAPI1 = 'http://live.bilibili.com/api/player?id=cid:';
 sAPI2 = 'http://live.bilibili.com/live/getInfo?roomid=';
 sAPI3 = 'http://live.bilibili.com/api/playurl?cid=';
 
+DOWNLOAD = False;
+COMMAND = '';
+
 running = True;
-noYouget = 1;
 
 def resolveUrl(nRoom):
     with urlopen(sAPI3 + str(nRoom)) as res:
@@ -55,7 +57,7 @@ def display(*args, **kargs):
         args = (str(x).encode('gbk', 'replace').decode('gbk') for x in args);
         print(*args, **kargs);
 
-def getRoom(nRoom):
+def getRoom(nRoom, isVerbose=True):
     def fetchRealRoom(nRoom):
         try:
             f1 = urllib.request.urlopen('http://live.bilibili.com/'+ str(nRoom));
@@ -72,33 +74,6 @@ def getRoom(nRoom):
         finally:
             if ('f1' in locals()): f1.close();
     try:
-        f1 = urllib.request.urlopen(sAPI1 + str(nRoom));
-        bRoomInfo = f1.read();
-        sRoomInfo = bRoomInfo.decode('utf-8');
-        match = re.search('<server>(.*?)</server>', sRoomInfo);
-        assert match;
-        sServer = match.group(1);
-    except socket.timeout as e:
-        display('获取弹幕服务器时连接超时',
-                '尝试使用默认弹幕服务器地址',
-                sep='\n');
-        sServer = 'livecmt-1.bilibili.com';
-    except urllib.error.HTTPError as e:
-        if ('f1' in locals()): f1.close();
-        if (e.code != 404):
-            raise;
-        nRoom = fetchRealRoom(nRoom);
-        f1 = urllib.request.urlopen(sAPI1 + str(nRoom));
-        bRoomInfo = f1.read();
-        sRoomInfo = bRoomInfo.decode('utf-8');
-        match = re.search('<server>(.*?)</server>', sRoomInfo);
-        assert match;
-        sServer = match.group(1);
-    finally:
-        if ('f1' in locals()): f1.close();
-    if (not sServer):
-        raise Exception('Error: wrong server: '+repr(sServer)); 
-    try:
         f1 = urllib.request.urlopen(sAPI2 + str(nRoom));
         bRoomInfo = f1.read();
         mData = json.loads(bRoomInfo.decode('utf-8'));
@@ -111,87 +86,81 @@ def getRoom(nRoom):
         sHoster = mData['data']['ANCHOR_NICK_NAME'];
         sTitle = mData['data']['ROOMTITLE'];
         sStatus = mData['data']['LIVE_STATUS'];
-        display('播主：{}\n房间：{}\n状态：{}'.format(sHoster, sTitle, sStatus))
+        _status = mData['data']['_status'];
+        if (isVerbose):
+            display('播主：{}\n房间：{}\n状态：{}'.format(sHoster, sTitle, sStatus))
     except Exception as e:
         display('获取房间信息失败');
         raise;
-        display(bRoomInfo);
     finally:
         if ('f1' in locals()): f1.close();
-    return sServer, nRoom, (sHoster, sTitle, sStatus);
+    return _status, nRoom, (sHoster, sTitle, sStatus);
 
 def monitor(nRoom, wait):
-    global args;
     global running;
-    global noYouget;
-    sServer, nRoom, aInfo = getRoom(nRoom);
+    global DOWNLOAD;
+    global COMMAND;
+    _status, nRoom, aInfo = getRoom(nRoom);
 
     while (running):
-        with urlopen(sAPI2 + str(nRoom)) as f:
-            bData = f.read();
-        mData = json.loads(bData.decode());
-        sStatus = mData['data']['_status'];
-        sAction = 'download' if args.down else 'play';
+        sStatus, nRoom, aInfo = getRoom(nRoom, False);
+        sAction = 'download' if DOWNLOAD else 'run' if COMMAND else 'play';
         display(time.ctime(), end=' - ');
         display('{} {}, status {}'.format(sAction, nRoom, sStatus));
-        if (sStatus == 'on'):
-            sCom = 'you-get ';
-            if (args.verbose):
-                sCom += ' -d';
-            if (args.down):
-                sName = aInfo[0] + '-' + aInfo[1];
-                sName = re.sub(r'[^\w_\-.()]', '-', sName);
-                while sStatus == 'on':
-                    sTime = time.strftime('%y%m%d_%H%M%S-');
-                    sOpt = ' -O "{}{}.flv" http://live.bilibili.com/{}'.format(sTime, sName, nRoom);
-                    if(noYouget):
-                        sUrl = resolveUrl(nRoom);
-                        display('    downloading room ' + str(nRoom));
-                        downStream(sUrl, '{}{}.flv'.format(sTime, sName));
-                    else:
-                        display(sCom + sOpt);
-                        os.system(sCom + sOpt);
-                    wait(2);
-                    with urlopen(sAPI2 + str(nRoom)) as f:
-                        bData = f.read();
-                    mData = json.loads(bData.decode());
-                    sStatus = mData['data']['_status'];
+        while sStatus == 'on':
+            sName = aInfo[0] + '-' + aInfo[1];
+            sName = re.sub(r'[^\w_\-.()]', '-', sName);
+            sTime = time.strftime('%y%m%d_%H%M%S-');
+            sName = '{}{}.flv'.format(sTime, sName);
+            sUrl = resolveUrl(nRoom);
+            if (DOWNLOAD):
+                display('    downloading room ' + str(nRoom));
+                downStream(sUrl, sName);
+            elif (COMMAND):
+                sCom = COMMAND.format(sUrl, sName);
+                display('    run command "{}"'.format(sCom));
+                subprocess.run(sCom, shell=True);
             else:
-                sOpt = ' -p mpv http://live.bilibili.com/{}'.format(nRoom);
-                while sStatus == 'on':
-                    if(noYouget):
-                        sUrl = resolveUrl(nRoom);
-                        display('    playing room {}\nmpv {}'.format(nRoom, sUrl));
-                        subprocess.run(['mpv', sUrl]);
-                        display('mpv exited.');
-                    else:
-                        display(sCom + sOpt);
-                        os.system(sCom + sOpt);
-                    wait(2);
-                    with urlopen(sAPI2 + str(nRoom)) as f:
-                        bData = f.read();
-                    mData = json.loads(bData.decode());
-                    sStatus = mData['data']['_status'];
-        else:
-            pass;
+                display('    playing room {}\nmpv {}'.format(nRoom, sUrl));
+                subprocess.run(['mpv', sUrl]);
+                display('mpv exited.');
+
+            wait(2);
+            sStatus, nRoom, aInfo = getRoom(nRoom, False);
+            #if (args.down):
+            #else:
+            #    while sStatus == 'on':
+            #        sUrl = resolveUrl(nRoom);
+
+            #        display('    playing room {}\nmpv {}'.format(nRoom, sUrl));
+            #        if (COMMAND):
+            #            subprocess.run(COMMAND.format(sUrl), shell=True);
+            #        else:
+            #            subprocess.run(['mpv', sUrl]);
+            #            display('mpv exited.');
+
+            #        wait(2);
+            #        sStatus, nRoom, aInfo = getRoom(nRoom, False);
         wait(30);
-        #time.sleep(30);
 
 def main():
     global args;
     global running;
-    global noYouget;
+    global DOWNLOAD;
+    global COMMAND;
     socket.setdefaulttimeout(30);
     parser1 = argparse.ArgumentParser(description='use you-get to monitor and download bilibili live');
     group1 = parser1.add_mutually_exclusive_group()
     group1.add_argument('-r', '--room', type=int, help='the room ID');
     group1.add_argument('-u', '--uid', type=int, help='the user id of the room hoster');
     group2 = parser1.add_mutually_exclusive_group()
-    group2.add_argument('-d', '--down', action='store_true', help='use you-get to download live stream');
-    group2.add_argument('-p', '--play', action='store_true', help='use combination of you-get and mpv to play live stream');
+    group2.add_argument('-d', '--down', action='store_true', help='use download live stream');
+    group2.add_argument('-p', '--play', action='store_true', help='use mpv to play live stream; it is the default operation so can be omitted');
+    group2.add_argument('-c', '--command',
+            help='handling the resolved stream with the given COMMAND; variables will be inserted using format syntax: COMMAND.format(URL, FILE), in which URL is the resolved stream url and FILE is the file name that would be used if the -d flag instead were set; take care of quoting: "{1}" "{0}"'
+    );
     parser1.add_argument('-v', '--verbose', action='store_true', help='show you-get debug info');
     args = parser1.parse_args();
-    #noYouget = subprocess.run('you-get --version', shell=1).returncode;
     nRoom = None;
     if (args.room):
         nRoom = args.room;
@@ -205,6 +174,10 @@ def main():
                 nRoom = int(mData['data']);
         finally:
             if ('f1' in locals()): f1.close();
+    if (args.down):
+        DOWNLOAD = True;
+    elif (args.command):
+        COMMAND = args.command;
     if (not nRoom):
         nRoom = int(input('room ID:'));
     if (sys.platform == 'win32'):
