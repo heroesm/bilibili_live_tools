@@ -9,3 +9,4 @@
 * listen_live: 监视特定直播间的状态，在其开启直播后下载直播流或配合mpv直接进行播放或运行指定命令。
 * danmu_purify: 净化 bilibili 直播网页右侧弹幕历史栏的css样式。
 * multi_listen: 同时监听多个直播间状态以下载。
+* danmu_sender: 提取浏览器cookies在直播间发送弹幕。
