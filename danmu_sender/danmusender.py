@@ -199,7 +199,7 @@ def main():
             #print(nDelta)
             if (nDelta < 1):
                 time.sleep(1 - nDelta);
-            sendMsg(sInput, nRoom);
+            sendMsg(sInput, room.nId);
             nTime0 = time.monotonic();
     except (KeyboardInterrupt, EOFError) as e:
         print();
