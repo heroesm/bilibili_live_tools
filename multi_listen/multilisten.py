@@ -28,6 +28,7 @@ sApi0 = 'http://space.bilibili.com/ajax/live/getLive?mid={}'
 sApi1 = 'http://live.bilibili.com/api/player?id=cid:{}';
 sApi2 = 'http://live.bilibili.com/live/getInfo?roomid={}';
 sApi3 = 'http://live.bilibili.com/api/playurl?cid={}';
+sAPI4 = 'https://api.live.bilibili.com/room/v1/Room/room_init?id={}'
 
 aRooms = [];
 sHome = '';
@@ -96,14 +97,18 @@ class Room():
     def getRealId(self):
         global log
         try:
-            sUrl = 'http://live.bilibili.com/{}'.format(self.nRoom);
-            res = urlopen(sUrl);
-            bData = res.read(5000);
-            match = re.search(rb'var ROOMID = (\d+);', bData);
-            if (match):
-                nId = int(match.group(1));
-            else:
-                nId = self.nRoom;
+            #sUrl = 'http://live.bilibili.com/{}'.format(self.nRoom);
+            #res = urlopen(sUrl);
+            #bData = res.read(5000);
+            #match = re.search(rb'var ROOMID = (\d+);', bData);
+            #if (match):
+            #    nId = int(match.group(1));
+            #else:
+            #    nId = self.nRoom;
+            res = urlopen(sAPI4.format(self.nRoom));
+            bData = res.read();
+            mData = json.loads(bData.decode());
+            nId = mData['data']['room_id'];
         except urllib.error.HTTPError as e:
             if (e.code == 404):
                 log.error('room {} not exists'.format(self.nRoom));

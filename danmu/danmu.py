@@ -51,6 +51,8 @@ sAPI1 = 'http://live.bilibili.com/api/player?id=cid:';
 sAPI2 = 'http://live.bilibili.com/live/getInfo?roomid=';
 # where to get room-related information
 
+sAPI4 = 'https://api.live.bilibili.com/room/v1/Room/room_init?id='
+
 # the path to the configuration file
 sPath = 'config.ini'
 # log is the verbose level display function
@@ -150,9 +152,13 @@ def getRoom(nRoom):
     def fetchRealRoom(nRoom):
         # 3 digit room IDs are all fake, so get the real room ID from the webpage
         try:
-            f1 = urllib.request.urlopen('http://live.bilibili.com/'+ str(nRoom));
-            bData = f1.read(5000);
-            nRoom = int(re.search(b'var ROOMID = (\\d+)?;', bData).group(1));
+            #f1 = urllib.request.urlopen('http://live.bilibili.com/'+ str(nRoom));
+            #bData = f1.read(5000);
+            #nRoom = int(re.search(b'var ROOMID = (\\d+)?;', bData).group(1));
+            f1 = urllib.request.urlopen(sAPI4 + str(nRoom));
+            bData = f1.read();
+            mData = json.loads(bData.decode());
+            nRoom = mData['data']['room_id'];
             return nRoom
         finally:
             if ('f1' in locals()): f1.close();
@@ -479,7 +485,7 @@ def main():
                 t.start();
             else:
                 beatClock = interval.clock;
-            handler2(sock1);
+            handler1(sock1);
         except (socket.timeout, TimeoutError) as e:
             display1('连接超时，重试...');
             continue;

@@ -18,6 +18,7 @@ sAPI0 = 'http://space.bilibili.com/ajax/live/getLive?mid='
 sAPI1 = 'http://live.bilibili.com/api/player?id=cid:';
 sAPI2 = 'http://live.bilibili.com/live/getInfo?roomid=';
 sAPI3 = 'http://live.bilibili.com/api/playurl?cid=';
+sAPI4 = 'https://api.live.bilibili.com/room/v1/Room/room_init?id='
 
 DOWNLOAD = False;
 COMMAND = '';
@@ -60,9 +61,13 @@ def display(*args, **kargs):
 def getRoom(nRoom, isVerbose=True):
     def fetchRealRoom(nRoom):
         try:
-            f1 = urllib.request.urlopen('http://live.bilibili.com/'+ str(nRoom));
-            bData = f1.read(5000);
-            nRoom = int(re.search(b'var ROOMID = (\\d+)?;', bData).group(1));
+            #f1 = urllib.request.urlopen('http://live.bilibili.com/'+ str(nRoom));
+            #bData = f1.read(5000);
+            #nRoom = int(re.search(b'var ROOMID = (\\d+)?;', bData).group(1));
+            f1 = urllib.request.urlopen(sAPI4 + str(nRoom));
+            bData = f1.read();
+            mData = json.loads(bData.decode());
+            nRoom = mData['data']['room_id'];
             return nRoom
         except urllib.error.HTTPError as e:
             if (e.code == 404):

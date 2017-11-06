@@ -1,5 +1,6 @@
 @namespace url(http://www.w3.org/1999/xhtml);
 
+/*
 @-moz-document domain("live.bilibili.com") {
     .chat-msg-list .system-msg,
     .chat-msg-list .announcement-container,
@@ -24,3 +25,30 @@
         display: none !important;
     }
 }
+*/
+@-moz-document domain("live.bilibili.com") {
+    #my-dear-haruna-vm,
+    .chat-history-list>:not(.danmaku-item),
+    .chat-history-list .danmaku-item>:not(.user-name):not(.danmaku-content),
+    .penury-gift-msg {
+        display: none !important;
+    }
+    #chat-history-list{
+        height: 100%
+    }
+    .guard-level-1 {
+        margin: 0 !important;
+        padding: 4px 5px !important;
+    }
+    .guard-level-1:before, .guard-level-1:after {
+        display: none !important;
+    }
+    .guard-level-2 {
+        margin: 0 !important;
+        padding: 4px 5px !important;
+    }
+    .guard-level-2:before, .guard-level-2:after {
+        display: none !important;
+    }
+}
+

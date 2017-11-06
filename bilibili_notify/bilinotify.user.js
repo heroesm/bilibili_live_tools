@@ -2,7 +2,7 @@
 // @name        bilibili notify
 // @namespace   heroesm
 // @include     http://live.bilibili.com/feed/getList/1
-// @version     1.0.5.1
+// @version     1.0.5.3
 // @grant       none
 // 
 // ==/UserScript==
@@ -16,6 +16,7 @@ function main(){
     var sMode = 'pro';
     var aTimer = [];
     var aAltRoomid = [];
+    var sTitle = '';
 
     function prepare(){
         Document.prototype.$ = Document.prototype.querySelector;
@@ -30,6 +31,7 @@ function main(){
         aTimer.push(timer);
         document.$('#pause').style.display = 'unset';
         document.$('#start').style.display = 'none';
+        document.title = sTitle;
         return timer;
     }
     function stop(){
@@ -40,6 +42,8 @@ function main(){
         }
         document.$('#pause').style.display = 'none';
         document.$('#start').style.display = 'unset';
+        sTitle = document.title;
+        document.title = '已暂停';
     }
     function update(){
         try{
@@ -120,6 +124,7 @@ function main(){
             document.title = "(！)有" + Data.count + "个直播";
             for(var x=0, item, sHTML; x<Data.count; x++){
                 item = Data.list[x];
+                item.link = item.link.replace(/com\/(\d+)$/, 'com\/neptune\/$1');
                 if (aAltRoomid != null && aAltRoomid.indexOf(item.roomid) == -1){
                     document.body.insertAdjacentHTML(
                         'beforeend',
@@ -153,7 +158,7 @@ function main(){
             document.body.insertAdjacentHTML('beforeend', '<br /><br />无直播');
             document.title = "无直播";
         }
-
+        sTitle = document.title;
         start();
         console.log('ended');
     }
