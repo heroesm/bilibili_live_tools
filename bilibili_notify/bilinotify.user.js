@@ -2,7 +2,7 @@
 // @name        bilibili notify
 // @namespace   heroesm
 // @include     http://live.bilibili.com/feed/getList/1
-// @version     1.0.5.3
+// @version     1.0.5.4
 // @grant       none
 // 
 // ==/UserScript==
@@ -124,7 +124,7 @@ function main(){
             document.title = "(！)有" + Data.count + "个直播";
             for(var x=0, item, sHTML; x<Data.count; x++){
                 item = Data.list[x];
-                item.link = item.link.replace(/com\/(\d+)$/, 'com\/neptune\/$1');
+                //item.link = item.link.replace(/com\/(\d+)$/, 'com\/neptune\/$1');
                 if (aAltRoomid != null && aAltRoomid.indexOf(item.roomid) == -1){
                     document.body.insertAdjacentHTML(
                         'beforeend',
