@@ -26,9 +26,11 @@ INTERVAL = 20;
 
 sApi0 = 'http://space.bilibili.com/ajax/live/getLive?mid={}'
 sApi1 = 'http://live.bilibili.com/api/player?id=cid:{}';
-sApi2 = 'http://live.bilibili.com/live/getInfo?roomid={}';
+sApi2 = 'http://live.bilibili.com/live/getInfo?roomid={}';  # obsolete
 sApi3 = 'http://live.bilibili.com/api/playurl?cid={}';
 sAPI4 = 'https://api.live.bilibili.com/room/v1/Room/room_init?id={}'
+sApi5 = 'http://api.live.bilibili.com/room/v1/Room/get_info?room_id={}'
+sApi6 = 'http://api.live.bilibili.com/live_user/v1/UserInfo/get_anchor_in_room?roomid={}'
 
 aRooms = [];
 sHome = '';
@@ -91,6 +93,7 @@ class Room():
                 self.nId = self.nRoom = int(mData['data']);
                 return True;
             else:
+                display('不存在的播主: ', self.nUser);
                 return False;
         finally:
             if ('res' in locals()): res.close();
@@ -120,26 +123,31 @@ class Room():
             return True
         finally:
             if ('res' in locals()): res.close();
+    def getHost(self):
+        if (self.sUser is None):
+            try:
+                f1 = urllib.request.urlopen(sApi6.format(self.nId));
+                bData = f1.read();
+                mData = json.loads(bData.decode());
+                self.sUser = mData['data']['info']['uname'];
+            except Exception as e:
+                display('获取播主失败: ', e);
+                self.sUser = '';
+            finally:
+                if ('f1' in locals()): f1.close();
     def getInfo(self):
         global log
-        global sApi2
+        global sApi5, sApi6
         try:
-            res = urlopen(sApi2.format(self.nId));
+            self.getRealId();
+            res = urlopen(sApi5.format(self.nId));
             sRoomInfo = res.read().decode('utf-8');
-            assert sRoomInfo;
             mData = json.loads(sRoomInfo);
-            if (mData['code'] == -400):
-                log.debug('room {} invalid, try fetching real one...'.format(self.nId));
-                self.getRealId();
-                res.close();
-                res = urlopen(sApi2.format(self.nId));
-                sRoomInfo = res.read().decode('utf-8');
-                mData = json.loads(sRoomInfo);
-            self.sUser = sUser = mData['data']['ANCHOR_NICK_NAME'];
-            self.nUser = nUser = mData['data']['MASTERID'];
-            self.sTitle = sTitle = mData['data']['ROOMTITLE'];
-            self.sStatus = sStatus = mData['data']['LIVE_STATUS'];
-            _status = mData['data']['_status'];
+            self.getHost();
+            self.sTitle = sTitle = mData['data']['title'];
+            nStatus = mData['data']['live_status'];
+            _status = 'on' if nStatus == 1 else 'off';
+            self.sStatus = _status;
         except Exception as e:
             log.error('failed to get room info: {}'.format(e));
             #raise;
@@ -319,9 +327,9 @@ def synMonitor(aIds=None, aUsers=None):
         sUser = sUser.strip();
         if (sUser):
             room = Room(None, int(sUser));
-            room.getRoomByUser();
-            room.getInfo();
-            aRooms.append(room);
+            if (room.getRoomByUser()):
+                room.getInfo();
+                aRooms.append(room);
     for room in aRooms:
         display('id: {}\nUser: {}\nroom: {}\nstatus: {}\n'.format(room.nId, room.sUser, room.sTitle, room.sStatus))
     log.debug('check interval: {}s'.format(INTERVAL));

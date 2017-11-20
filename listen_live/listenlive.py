@@ -16,14 +16,23 @@ import subprocess
 
 sAPI0 = 'http://space.bilibili.com/ajax/live/getLive?mid='
 sAPI1 = 'http://live.bilibili.com/api/player?id=cid:';
-sAPI2 = 'http://live.bilibili.com/live/getInfo?roomid=';
+sAPI2 = 'http://live.bilibili.com/live/getInfo?roomid=';    # obsolete
 sAPI3 = 'http://live.bilibili.com/api/playurl?cid=';
 sAPI4 = 'https://api.live.bilibili.com/room/v1/Room/room_init?id='
+sAPI5 = 'http://api.live.bilibili.com/room/v1/Room/get_info?room_id='
+sAPI6 = 'http://api.live.bilibili.com/live_user/v1/UserInfo/get_anchor_in_room?roomid='
 
 DOWNLOAD = False;
 COMMAND = '';
 
 running = True;
+mRoom2Host = {};
+
+def prepare():
+    opener = urllib.request.build_opener();
+    opener.addheaders = [('User-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/46.0.2486.0 Safari/537.36 Edge/13.10586')];
+    urllib.request.install_opener(opener);
+prepare();
 
 def resolveUrl(nRoom):
     with urlopen(sAPI3 + str(nRoom)) as res:
@@ -58,6 +67,22 @@ def display(*args, **kargs):
         args = (str(x).encode('gbk', 'replace').decode('gbk') for x in args);
         print(*args, **kargs);
 
+def getHost(nRoom):
+    global mRoom2Host;
+    sHost = mRoom2Host.get(nRoom);
+    if (sHost is None):
+        try:
+            f1 = urllib.request.urlopen(sAPI6 + str(nRoom));
+            bData = f1.read();
+            mData = json.loads(bData.decode());
+            sHost = mData['data']['info']['uname'];
+        except Exception as e:
+            display('获取播主失败: ', e);
+            sHost = '';
+        finally:
+            if ('f1' in locals()): f1.close();
+    return sHost;
+
 def getRoom(nRoom, isVerbose=True):
     def fetchRealRoom(nRoom):
         try:
@@ -79,27 +104,22 @@ def getRoom(nRoom, isVerbose=True):
         finally:
             if ('f1' in locals()): f1.close();
     try:
-        f1 = urllib.request.urlopen(sAPI2 + str(nRoom));
+        nRoom = fetchRealRoom(nRoom);
+        f1 = urllib.request.urlopen(sAPI5 + str(nRoom));
         bRoomInfo = f1.read();
         mData = json.loads(bRoomInfo.decode('utf-8'));
-        if (mData['code'] == -400):
-            nRoom = fetchRealRoom(nRoom);
-            f1.close();
-            f1 = urllib.request.urlopen(sAPI2 + str(nRoom));
-            bRoomInfo = f1.read();
-            mData = json.loads(bRoomInfo.decode('utf-8'));
-        sHoster = mData['data']['ANCHOR_NICK_NAME'];
-        sTitle = mData['data']['ROOMTITLE'];
-        sStatus = mData['data']['LIVE_STATUS'];
-        _status = mData['data']['_status'];
+        sHost = getHost(nRoom);
+        sTitle = mData['data']['title'];
+        nStatus = mData['data']['live_status'];
+        _status = 'on' if nStatus == 1 else 'off';
         if (isVerbose):
-            display('播主：{}\n房间：{}\n状态：{}'.format(sHoster, sTitle, sStatus))
+            display('播主：{}\n房间：{}\n状态：{}'.format(sHost, sTitle, nStatus))
     except Exception as e:
         display('获取房间信息失败');
         raise;
     finally:
         if ('f1' in locals()): f1.close();
-    return _status, nRoom, (sHoster, sTitle, sStatus);
+    return _status, nRoom, (sHost, sTitle, nStatus);
 
 def monitor(nRoom, wait):
     global running;

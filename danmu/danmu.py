@@ -48,10 +48,12 @@ sAPI0 = 'http://space.bilibili.com/ajax/live/getLive?mid='
 # using user ID to get the live status and the live room ID of that user
 sAPI1 = 'http://live.bilibili.com/api/player?id=cid:';
 # where to get the hostname of danmu server particular to certain room
-sAPI2 = 'http://live.bilibili.com/live/getInfo?roomid=';
+sAPI2 = 'http://live.bilibili.com/live/getInfo?roomid=';    # obsolete
 # where to get room-related information
 
 sAPI4 = 'https://api.live.bilibili.com/room/v1/Room/room_init?id='
+sAPI5 = 'http://api.live.bilibili.com/room/v1/Room/get_info?room_id='
+sAPI6 = 'http://api.live.bilibili.com/live_user/v1/UserInfo/get_anchor_in_room?roomid='
 
 # the path to the configuration file
 sPath = 'config.ini'
@@ -75,6 +77,8 @@ aBlock = [];
 notifyMode = 2;
 # the threading event corresonding to the manual activating of the online-counter
 beatClock = None;
+
+mRoom2Host = {};
 
 # the default programme configuration
 mConfig = { 
@@ -147,6 +151,22 @@ def notify():
         # send the last heartbeat while quitting the programme, receiving immediate  response to prevent from being blocked by socket.recv or socketfile.read
         display1('退出中');
 
+def getHost(nRoom):
+    global mRoom2Host;
+    sHost = mRoom2Host.get(nRoom);
+    if (sHost is None):
+        try:
+            f1 = urllib.request.urlopen(sAPI6 + str(nRoom));
+            bData = f1.read();
+            mData = json.loads(bData.decode());
+            sHost = mData['data']['info']['uname'];
+        except Exception as e:
+            display('获取播主失败: ', e);
+            sHost = '';
+        finally:
+            if ('f1' in locals()): f1.close();
+    return sHost;
+
 def getRoom(nRoom):
     'get real room ID and related information'
     def fetchRealRoom(nRoom):
@@ -187,20 +207,15 @@ def getRoom(nRoom):
         raise Exception('Error: wrong server: '+repr(sServer)); 
     try:
         # get room information, e.g. room title and hoster
-        f1 = urllib.request.urlopen(sAPI2 + str(nRoom));
+        nRoom = fetchRealRoom(nRoom);
+        f1 = urllib.request.urlopen(sAPI5 + str(nRoom));
         bRoomInfo = f1.read();
         mData = json.loads(bRoomInfo.decode('utf-8'));
-        if (mData['code'] == -400):
-            # another case of invalid room ID
-            nRoom = fetchRealRoom(nRoom);
-            f1.close();
-            f1 = urllib.request.urlopen(sAPI2 + str(nRoom));
-            bRoomInfo = f1.read();
-            mData = json.loads(bRoomInfo.decode('utf-8'));
-        sHoster = mData['data']['ANCHOR_NICK_NAME'];
-        sTitle = mData['data']['ROOMTITLE'];
-        sStatus = mData['data']['LIVE_STATUS'];
-        display1('播主：{}\n房间：{}\n状态：{}'.format(sHoster, sTitle, sStatus));
+        sHost = getHost(nRoom);
+        sTitle = mData['data']['title'];
+        nStatus = mData['data']['live_status'];
+        _status = 'on' if nStatus == 1 else 'off';
+        display1('播主：{}\n房间：{}\n状态：{}'.format(sHost, sTitle, _status));
     except Exception as e:
         # not expected to happen
         display1('获取房间信息失败');
@@ -208,7 +223,7 @@ def getRoom(nRoom):
         log(bRoomInfo);
     finally:
         if ('f1' in locals()): f1.close();
-    return sServer, nRoom, sHoster, sTitle;
+    return sServer, nRoom, sHost, sTitle;
 
 def handler1(sock1):
     'handle danmu-related TCP socket with socket makefile'
