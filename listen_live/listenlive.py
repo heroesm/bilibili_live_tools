@@ -76,6 +76,7 @@ def getHost(nRoom):
             bData = f1.read();
             mData = json.loads(bData.decode());
             sHost = mData['data']['info']['uname'];
+            mRoom2Host[nRoom] = sHost;
         except Exception as e:
             display('获取播主失败: ', e);
             sHost = '';
