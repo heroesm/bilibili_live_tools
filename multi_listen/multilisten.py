@@ -74,7 +74,7 @@ class Room():
         global log
         self.nRoom = int(nRoom or 0);
         self.nUser= int(nUser or 0);
-        self.nId = self.nRoom;
+        self.nId = None;
         self.sUrl = None;
         self.sTitle = None;
         self.sUser = None;
@@ -139,7 +139,7 @@ class Room():
         global log
         global sApi5, sApi6
         try:
-            self.getRealId();
+            if (self.nId is None): self.getRealId();
             res = urlopen(sApi5.format(self.nId));
             sRoomInfo = res.read().decode('utf-8');
             mData = json.loads(sRoomInfo);

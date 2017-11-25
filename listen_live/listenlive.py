@@ -34,6 +34,9 @@ def prepare():
     urllib.request.install_opener(opener);
 prepare();
 
+class RetryError(Exception):
+    pass
+
 def resolveUrl(nRoom):
     with urlopen(sAPI3 + str(nRoom)) as res:
         bData = res.read();
@@ -84,7 +87,7 @@ def getHost(nRoom):
             if ('f1' in locals()): f1.close();
     return sHost;
 
-def getRoom(nRoom, isVerbose=True):
+def getRoom(nRoom, isVerbose=True, isReal=False):
     def fetchRealRoom(nRoom):
         try:
             #f1 = urllib.request.urlopen('http://live.bilibili.com/'+ str(nRoom));
@@ -105,7 +108,7 @@ def getRoom(nRoom, isVerbose=True):
         finally:
             if ('f1' in locals()): f1.close();
     try:
-        nRoom = fetchRealRoom(nRoom);
+        if(not isReal): nRoom = fetchRealRoom(nRoom);
         f1 = urllib.request.urlopen(sAPI5 + str(nRoom));
         bRoomInfo = f1.read();
         mData = json.loads(bRoomInfo.decode('utf-8'));
@@ -115,6 +118,8 @@ def getRoom(nRoom, isVerbose=True):
         _status = 'on' if nStatus == 1 else 'off';
         if (isVerbose):
             display('播主：{}\n房间：{}\n状态：{}'.format(sHost, sTitle, nStatus))
+    except KeyError as e:
+        raise RetryError('数据返回错误: {}'.format(e));
     except Exception as e:
         display('获取房间信息失败');
         raise;
@@ -126,10 +131,14 @@ def monitor(nRoom, wait):
     global running;
     global DOWNLOAD;
     global COMMAND;
-    _status, nRoom, aInfo = getRoom(nRoom);
+    _status, nRoom, aInfo = getRoom(nRoom, isVerbose=True, isReal=False);
 
     while (running):
-        sStatus, nRoom, aInfo = getRoom(nRoom, False);
+        try:
+            sStatus, nRoom, aInfo = getRoom(nRoom, isVerbose=False, isReal=True);
+        except RetryError as e:
+            display(e);
+            continue;
         sAction = 'download' if DOWNLOAD else 'run' if COMMAND else 'play';
         display(time.ctime(), end=' - ');
         display('{} {}, status {}'.format(sAction, nRoom, sStatus));
