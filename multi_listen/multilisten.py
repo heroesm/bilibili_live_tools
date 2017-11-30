@@ -27,10 +27,11 @@ INTERVAL = 20;
 sApi0 = 'http://space.bilibili.com/ajax/live/getLive?mid={}'
 sApi1 = 'http://live.bilibili.com/api/player?id=cid:{}';
 sApi2 = 'http://live.bilibili.com/live/getInfo?roomid={}';  # obsolete
-sApi3 = 'http://live.bilibili.com/api/playurl?cid={}';
+sApi3 = 'http://live.bilibili.com/api/playurl?cid={}';      # obsolete
 sAPI4 = 'https://api.live.bilibili.com/room/v1/Room/room_init?id={}'
 sApi5 = 'http://api.live.bilibili.com/room/v1/Room/get_info?room_id={}'
 sApi6 = 'http://api.live.bilibili.com/live_user/v1/UserInfo/get_anchor_in_room?roomid={}'
+sApi7 = 'https://api.live.bilibili.com/api/playurl?cid={}&otype=json&platform=web'
 
 aRooms = [];
 sHome = '';
@@ -156,17 +157,30 @@ class Room():
         finally:
             if ('res' in locals()): res.close();
     def getStream(self):
-        global sApi3
-        with urlopen(sApi3.format(self.nId)) as res:
+        #global sApi3
+        #with urlopen(sApi3.format(self.nId)) as res:
+        #    sData = res.read().decode('utf-8');
+        #iMatches = re.finditer(r'<(?:b\d)?url><!\[CDATA\[(.+)\]\]><\/(?:b\d)?url>', sData);
+        #aMatches = list(iMatches);
+        #if (aMatches):
+        #    self.aUrls = [x.group(1) for x in aMatches];
+        #    sUrl = self.sUrl = self.aUrls[0];
+        #    return sUrl;
+        #else:
+        #    return False;
+        global sApi7
+        with urlopen(sApi7.format(self.nId)) as res:
             sData = res.read().decode('utf-8');
-        iMatches = re.finditer(r'<(?:b\d)?url><!\[CDATA\[(.+)\]\]><\/(?:b\d)?url>', sData);
-        aMatches = list(iMatches);
-        if (aMatches):
-            self.aUrls = [x.group(1) for x in aMatches];
-            sUrl = self.sUrl = self.aUrls[0];
-            return sUrl;
-        else:
+        mData = json.loads(sData);
+        try:
+            aUrl = [x['url'] for x in mData['durl']];
+            sUrl = self.sUrl = mData['durl'][0]['url'];
+        except AttributeError as e:
+            log.error('failed to get stream URL: {}'.format(e));
             return False;
+        else:
+            return sUrl;
+
     def download(self, sPath, stream=sys.stdout, nVerbose=1):
         global log
         def adaptName(sPath):

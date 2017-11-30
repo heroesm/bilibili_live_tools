@@ -17,10 +17,11 @@ import subprocess
 sAPI0 = 'http://space.bilibili.com/ajax/live/getLive?mid='
 sAPI1 = 'http://live.bilibili.com/api/player?id=cid:';
 sAPI2 = 'http://live.bilibili.com/live/getInfo?roomid=';    # obsolete
-sAPI3 = 'http://live.bilibili.com/api/playurl?cid=';
+sAPI3 = 'http://live.bilibili.com/api/playurl?cid=';        # obsolete
 sAPI4 = 'https://api.live.bilibili.com/room/v1/Room/room_init?id='
 sAPI5 = 'http://api.live.bilibili.com/room/v1/Room/get_info?room_id='
 sAPI6 = 'http://api.live.bilibili.com/live_user/v1/UserInfo/get_anchor_in_room?roomid='
+sAPI7 = 'https://api.live.bilibili.com/api/playurl?otype=json&platform=web&cid='
 
 DOWNLOAD = False;
 COMMAND = '';
@@ -38,9 +39,13 @@ class RetryError(Exception):
     pass
 
 def resolveUrl(nRoom):
-    with urlopen(sAPI3 + str(nRoom)) as res:
+    #with urlopen(sAPI3 + str(nRoom)) as res:
+    #    bData = res.read();
+    #sUrl = re.search(rb'<url><!\[CDATA\[(.+)\]\]><\/url>', bData).group(1).decode('utf-8');
+    with urlopen(sAPI7 + str(nRoom)) as res:
         bData = res.read();
-    sUrl = re.search(rb'<url><!\[CDATA\[(.+)\]\]><\/url>', bData).group(1).decode('utf-8');
+    mData = json.loads(bData.decode());
+    sUrl = mData['durl'][0]['url'];
     return sUrl;
 
 def downStream(sUrl, sFile):
