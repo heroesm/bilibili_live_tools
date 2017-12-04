@@ -139,11 +139,7 @@ def monitor(nRoom, wait):
     _status, nRoom, aInfo = getRoom(nRoom, isVerbose=True, isReal=False);
 
     while (running):
-        try:
-            sStatus, nRoom, aInfo = getRoom(nRoom, isVerbose=False, isReal=True);
-        except RetryError as e:
-            display(e);
-            continue;
+        sStatus, nRoom, aInfo = getRoom(nRoom, isVerbose=False, isReal=True);
         sAction = 'download' if DOWNLOAD else 'run' if COMMAND else 'play';
         display(time.ctime(), end=' - ');
         display('{} {}, status {}'.format(sAction, nRoom, sStatus));
@@ -227,6 +223,10 @@ def main():
     while running:
         try:
             monitor(nRoom, wait);
+        except RetryError as e:
+            display(e);
+            wait(10);
+            continue;
         except socket.timeout as e:
             display('\n连接超时\n');
             wait(5);
