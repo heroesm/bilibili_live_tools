@@ -2,7 +2,7 @@
 // @name        bilibili notify
 // @namespace   heroesm
 // @include     http://live.bilibili.com/feed/getList/1
-// @version     1.0.5.4
+// @version     1.0.5.5
 // @grant       none
 // 
 // ==/UserScript==
@@ -166,7 +166,7 @@ function main(){
         var div = document.createElement('div');
         div.textContent = sRes;
         document.body.appendChild(div);
-        var Obj = JSON.parse(sRes.slice(1,-2));
+        var Obj = JSON.parse(sRes);
         if (Obj.code == 0){
             var aRooms = Obj.data.list;
             aRooms || (aRooms = []);
