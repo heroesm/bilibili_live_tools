@@ -2,9 +2,10 @@
 // @name        bilibili notify
 // @namespace   heroesm
 // @include     http://live.bilibili.com/feed/getList/1
-// @version     1.0.5.5
+// @version     1.0.5.6
 // @grant       none
 // 
+// @description 自动监听bilibili直播推送信息，当所关注者开启直播时自动打开直播网页的javascript脚本。
 // ==/UserScript==
 function main(){
     "use strict";
@@ -171,7 +172,7 @@ function main(){
             var aRooms = Obj.data.list;
             aRooms || (aRooms = []);
             for (var i=0; i<aRooms.length; i++){
-                aAltRoomid.push(aRooms[i].roomid);
+                aAltRoomid.push(aRooms[i].roomid.toString());
             }
         }
         else{
