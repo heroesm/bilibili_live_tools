@@ -2,7 +2,8 @@
 // @name        bilibili notify
 // @namespace   heroesm
 // @include     http://live.bilibili.com/feed/getList/1
-// @version     1.0.5.6
+// @include     https://live.bilibili.com/feed/getList/1
+// @version     1.0.5.7
 // @grant       none
 // 
 // @description 自动监听bilibili直播推送信息，当所关注者开启直播时自动打开直播网页的javascript脚本。
@@ -10,7 +11,7 @@
 function main(){
     "use strict";
     
-    var sAltAPI = 'http://api.live.bilibili.com/ajax/feed/list?pagesize=30&page=1';
+    var sAltAPI = '//api.live.bilibili.com/ajax/feed/list?pagesize=30&page=1';
     var running = true;
     var rProFilter, rConFilter;
     var rFilter = /./;
