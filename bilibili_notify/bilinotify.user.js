@@ -3,7 +3,9 @@
 // @namespace   heroesm
 // @include     http://live.bilibili.com/feed/getList/1
 // @include     https://live.bilibili.com/feed/getList/1
-// @version     1.0.5.7
+// @include     http://api.live.bilibili.com/ajax/feed/list*
+// @include     https://api.live.bilibili.com/ajax/feed/list*
+// @version     1.0.6
 // @grant       none
 // 
 // @description 自动监听bilibili直播推送信息，当所关注者开启直播时自动打开直播网页的javascript脚本。
@@ -17,9 +19,13 @@ function main(){
     var rFilter = /./;
     var sMode = 'pro';
     var aTimer = [];
-    var aAltRoomid = [];
+    var aAltRoomid = null;
     var sTitle = '';
+    var isBuilt = false;
 
+    function reload(){
+        run()
+    }
     function prepare(){
         Document.prototype.$ = Document.prototype.querySelector;
         Element.prototype.$ = Element.prototype.querySelector;
@@ -28,7 +34,7 @@ function main(){
     }
     function start(){
         var timer = setTimeout(function(){
-            window.location.reload();
+            reload()
         }, 30000);
         aTimer.push(timer);
         document.$('#pause').style.display = 'unset';
@@ -66,11 +72,16 @@ function main(){
     }
     function checkopen(item){
         var con = Boolean(sMode == 'con');
-        if(con ^ rFilter.test(item.nickname)){
-            window.open(item.link + '###', item.nickname);
+        var sName = item.nickname || item.uname
+        if(con ^ rFilter.test(sName)){
+            window.open(item.link + '###', sName);
         }
     }
     function build(){
+        if (isBuilt){
+            return
+        }
+        isBuilt = true;
         var style = document.createElement('style');
         style.id = 'bilinotify_css';
         style.innerHTML = [
@@ -94,7 +105,8 @@ function main(){
                 '    <button id="confirm">确认</button>',
                 '    <button id="pause">暂停</button>',
                 '    <button id="start">继续</button>',
-                '</div>'
+                '</div>',
+                '<div id="temp"></div>'
             ].join('\n')
         );
         if (localStorage.bilinotify_con){
@@ -111,75 +123,70 @@ function main(){
         document.$('#start').onclick = start;
         document.$('#pause').onclick = stop;
     }
-    function run(){
+    function process(sRes){
         try{
             prepare();
         }catch(e){}
-        var Obj = JSON.parse(document.body.childNodes[0].textContent.slice(1,-2));
+        //var Obj = JSON.parse(document.body.childNodes[0].textContent.slice(1,-2));
+        var Obj = JSON.parse(sRes);
         build();
         var Data = Obj.data;
-        if(Obj.code == -101){
-            document.body.insertAdjacentHTML('beforeend', '<br /><br />未登录');
+        window.temp.innerHTML = sRes;
+        if(Obj.code == 401){
+            window.temp.innerHTML += '<br /><br />未登录';
             document.title = '未登录';
         }
-        else if(Data.count>0) {
-            document.title = "(！)有" + Data.count + "个直播";
-            for(var x=0, item, sHTML; x<Data.count; x++){
+        else if(Data.list.length>0) {
+            document.title = "(！)有" + Data.list.length + "个直播";
+            for(var x=0, item, sHTML; x<Data.list.length; x++){
                 item = Data.list[x];
-                //item.link = item.link.replace(/com\/(\d+)$/, 'com\/neptune\/$1');
-                if (aAltRoomid != null && aAltRoomid.indexOf(item.roomid) == -1){
-                    document.body.insertAdjacentHTML(
-                        'beforeend',
-                        'erroneous response from server'
-                    );
-                    document.title = '信息错误';
-                    throw 'erroneous response from server';
-                }
+                //if (aAltRoomid != null && aAltRoomid.indexOf(item.roomid) == -1){
+                //    window.temp.innerHTML += 'erroneous response from server';
+                //    document.title = '信息错误';
+                //    throw 'erroneous response from server';
+                //}
                 sHTML = ([
                     '<br />',
                     '<br />',
                     '<div style="clear:both;">',
                     '    <a style="float:left;" href="${item.link}"><img style="width:100px; height: 100px;" src="${item.face}"></img></a>',
                     '    <div style="float:left;">',
-                    '        <span>${item.nickname}</span>',
+                    '        <span>${item.nickname||item.uname}</span>',
                     '        <br>',
-                    '        <a href="${item.link}">${item.roomname}</a>',
+                    '        <a href="${item.link}">${item.roomname||item.title}</a>',
                     '    </div>',
                     '</div>'
                 ].join('\n').replace(/\$\{([^\}]+)\}/g, function(sMatch, sP1){
                     return eval(sP1);
                 }));
-                document.body.insertAdjacentHTML(
-                    'beforeend', 
-                    sHTML
-                );
+                window.temp.innerHTML += sHTML
                 checkopen(item);
             }
         }
         else{
-            document.body.insertAdjacentHTML('beforeend', '<br /><br />无直播');
+            window.temp.innerHTML += '<br /><br />无直播';
             document.title = "无直播";
         }
         sTitle = document.title;
         start();
         console.log('ended');
     }
-    function handleAltList(sRes){
-        var div = document.createElement('div');
-        div.textContent = sRes;
-        document.body.appendChild(div);
-        var Obj = JSON.parse(sRes);
-        if (Obj.code == 0){
-            var aRooms = Obj.data.list;
-            aRooms || (aRooms = []);
-            for (var i=0; i<aRooms.length; i++){
-                aAltRoomid.push(aRooms[i].roomid.toString());
-            }
-        }
-        else{
-            aAltRoomid = null;
-        }
-    }
+    //function handleAltList(sRes){
+    //    var div = document.createElement('div');
+    //    div.textContent = sRes;
+    //    document.body.appendChild(div);
+    //    var Obj = JSON.parse(sRes);
+    //    if (Obj.code == 0){
+    //        var aRooms = Obj.data.list;
+    //        aRooms || (aRooms = []);
+    //        for (var i=0; i<aRooms.length; i++){
+    //            aAltRoomid.push(aRooms[i].roomid.toString());
+    //        }
+    //    }
+    //    else{
+    //        aAltRoomid = null;
+    //    }
+    //}
     function getAltList(callback){
         var xhr = new XMLHttpRequest();
         xhr.timeout = 5000;
@@ -187,7 +194,7 @@ function main(){
         xhr.ontimeout = xhr.onerror = function(e){
             console.log('timeout when getting alternative list');
             setTimeout(function(){
-                window.location.reload();
+                reload()
             }, 5000);
 
         };
@@ -198,7 +205,7 @@ function main(){
             }catch(e){
                 console.log(e.toString());
                 setTimeout(function(){
-                    window.location.reload();
+                    reload()
                 }, 30000);
             }
         }
@@ -207,13 +214,16 @@ function main(){
         xhr.send();
     }
     
-    getAltList(function(sRes){
-        if (sRes){
-            handleAltList(sRes);
-        }
-        run();
-    });
-    //run();
+    function run(){
+        getAltList(function(sRes){
+            //if (sRes){
+            //    handleAltList(sRes);
+            //}
+            sRes = sRes || document.body.childNodes[0].textContent
+            process(sRes);
+        });
+    }
+    run();
 }
 
 try{
