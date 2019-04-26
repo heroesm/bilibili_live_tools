@@ -44,16 +44,16 @@ from utility import Displayer, SetInterval
 #import colorama
 #colorama.init()
 
-sAPI0 = 'http://space.bilibili.com/ajax/live/getLive?mid='
+sAPI0 = 'https://space.bilibili.com/ajax/live/getLive?mid='
 # using user ID to get the live status and the live room ID of that user
-sAPI1 = 'http://live.bilibili.com/api/player?id=cid:';
+sAPI1 = 'https://live.bilibili.com/api/player?id=cid:';
 # where to get the hostname of danmu server particular to certain room
-sAPI2 = 'http://live.bilibili.com/live/getInfo?roomid=';    # obsolete
+sAPI2 = 'https://live.bilibili.com/live/getInfo?roomid=';    # obsolete
 # where to get room-related information
 
 sAPI4 = 'https://api.live.bilibili.com/room/v1/Room/room_init?id='
-sAPI5 = 'http://api.live.bilibili.com/room/v1/Room/get_info?room_id='
-sAPI6 = 'http://api.live.bilibili.com/live_user/v1/UserInfo/get_anchor_in_room?roomid='
+sAPI5 = 'https://api.live.bilibili.com/room/v1/Room/get_info?room_id='
+sAPI6 = 'https://api.live.bilibili.com/live_user/v1/UserInfo/get_anchor_in_room?roomid='
 
 # the path to the configuration file
 sPath = 'config.ini'
@@ -81,7 +81,7 @@ beatClock = None;
 mRoom2Host = {};
 
 # the default programme configuration
-mConfig = { 
+mConfig = {
         'gift': 0,
         # Note that colour is implemented using ANSI escape character, which is not completedly supported in windows, meaning that it may not work by running it directly or with powershell. Run the programme through cmd(which support win32api) to bypass the problem. Otherwise set it to 0 to roll back to monochrome mode.
         'colour': 1,
@@ -128,6 +128,10 @@ mMap = {
         'block': lambda x: int(x),
         'notify': lambda x: int(x)
 }
+
+def prepare():
+    os.chdir(os.path.split(__file__)[0]);
+prepare();
 
 class SocketDied(OSError):
     # the socket connection to the danmu server has been closed
@@ -204,7 +208,7 @@ def getRoom(nRoom):
         if ('f1' in locals()): f1.close();
     if (not sServer):
         # not expected to happen
-        raise Exception('Error: wrong server: '+repr(sServer)); 
+        raise Exception('Error: wrong server: '+repr(sServer));
     try:
         # get room information, e.g. room title and hoster
         nRoom = fetchRealRoom(nRoom);
@@ -237,7 +241,7 @@ def handler1(sock1):
         nLength = struct.unpack('>I', bLength)[0];
         # the total length of the a single danmu message; the next 4 bytes is the header length
         bContent = fSock.read(nLength - 4);
-        if (hexlify(bContent) == b'001000010000000800000001'): 
+        if (hexlify(bContent) == b'001000010000000800000001'):
             # welcome message
             display1('已接入弹幕服务器', '按回车显示在线人数', 'ctrl-c退出');
             while alive:
@@ -258,7 +262,7 @@ def handler2(sock1):
     global alive;
     bData = sock1.recv(16);
     sock1.settimeout(0);
-    if (hexlify(bData) == b'00000010001000010000000800000001'): 
+    if (hexlify(bData) == b'00000010001000010000000800000001'):
         # welcome message
         display1('已接入弹幕服务器', '按回车显示在线人数', 'ctrl-c退出');
     bBuff = b'';
@@ -304,7 +308,7 @@ def handleDanmu(bContent):
             assert (bContent[8:12] == unhexlify('00000000'));
             mData = json.loads(bContent[12:].decode('utf-8'));
             #if (re.match(r'welcome|sys_gift|sys_msg|send_top|add_vt_member|bet_bettor|bet_banker', mData['cmd'].lower())):
-            if (mData['cmd'].lower() in ['welcome', 'welcome_guard', 'sys_gift', 'sys_msg', 'send_top', 'add_vt_member', 'bet_bettor', 'bet_banker', 'tv_start', 'tv_end']):
+            if (mData['cmd'].lower() in ['welcome', 'welcome_guard', 'sys_gift', 'sys_msg', 'send_top', 'add_vt_member', 'bet_bettor', 'bet_banker', 'tv_start', 'tv_end', 'combo_end', 'room_rank']):
                 # welcome message | system-wide gift message 1 | system-wide gift message 2 | virtual audience?
                 pass;
             elif (mData['cmd'].lower() == 'special_gift'):
@@ -354,13 +358,13 @@ def handleDanmu(bContent):
                             sRawSender, sTime, sRawMessage
                         ));
                         #localFile.flush();
-            elif (mData['cmd'].lower() == 'send_gift'):
+            elif (mData['cmd'].lower() in ['combo_send', 'send_gift']):
                 # gift message
                 if (mConfig['gift']):
                     display( '{0} 赠送 {1} {2}'.format(
-                        mData['data']['uname'],
-                        mData['data']['num'],
-                        mData['data']['giftName']
+                        mData['data'].get('uname'),
+                        mData['data'].get('num'),
+                        mData['data'].get('giftName')
                     ));
             elif (mData['cmd'].lower() == 'room_block_msg'):
                 display('{} 已被禁言'.format(mData['uname']));
@@ -434,7 +438,13 @@ def main():
     if (mConfig['block']):
         # it seems that two format of flooding messages are existing
         aBlock = ['bilibili-(゜-゜)つロ乾杯~',
-                  '- ( ゜- ゜)つロ 乾杯~ - bilibili'
+                  '- ( ゜- ゜)つロ 乾杯~ - bilibili',
+                  '哔哩哔哩 (゜-゜)つロ 干杯~',
+                  '哔哩哔哩 (゜-゜)つロ 干杯~,',
+                  '哔哩哔哩 (゜-゜)つロ 干杯~',
+                  '哔哩哔哩 ( ゜ -゜)つロ 干杯~',
+                  '送你一片樱花雨，生生世世陪伴你~',
+                  '忽如一夜春风来，千树万树樱花开！',
         ];
     if (mConfig['notify']):
         notifyMode = 2;
@@ -476,14 +486,14 @@ def main():
                 log('弹幕服务器 ' + sServer);
                 aAddr1 = (sServer, 788);
                 sock1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM);
-                sock1.connect(aAddr1); 
+                sock1.connect(aAddr1);
             log('地址为 ', *sock1.getpeername());
             nUid = int(100000000000000 + 200000000000000*random.random());
             # a random meaningless user ID
             #bPayload = b'{"roomid":%d,"uid":%d}' % (nRoom, nUid);
             bPayload = ('{"roomid":%d,"uid":%d}' % (nRoom, nUid)).encode('utf-8');
             nLength = len(bPayload) + 16;
-            bReq = struct.pack('>IIII', nLength, 0x100001, 0x7, 0x1);  
+            bReq = struct.pack('>IIII', nLength, 0x100001, 0x7, 0x1);
             bReq += bPayload;
             sock1.sendall(bReq);
             alive = True;
