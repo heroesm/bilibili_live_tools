@@ -17,13 +17,13 @@ import logging
 
 try:
     import readline
-except ImportError as e:
+except ImportError:
     pass
 
 ROOM = 0;
 
 FILE = 'bilicookies.txt';
-UA = 'Mozilla/5.0'
+UA = 'Mozilla/5.0 (X11; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/60.0'
 COOKIES = '';
 DOMAIN = 'https://live.bilibili.com'
 LOGLEVEL = logging.INFO;
@@ -130,7 +130,7 @@ class Room():
                 mData = json.loads(bData.decode());
                 self.sUser = mData['data']['info']['uname'];
             except Exception as e:
-                display('获取播主失败: ', e);
+                print('获取播主失败: ', e);
                 self.sUser = '';
             finally:
                 if ('f1' in locals()): f1.close();
@@ -155,9 +155,14 @@ class Room():
         finally:
             if ('res' in locals()): res.close();
 
+def get_cookie_value(jar, key):
+    for cookie in jar:
+        if cookie.name == key:
+            return cookie.value
+
 def sendMsg(sMsg, nRoom):
     global UA, COOKIES, DOMAIN, FILE;
-    sApi = 'https://live.bilibili.com/msg/send';
+    sApi = 'https://api.live.bilibili.com/msg/send';
     sUa = UA or 'Mozilla/5.0'
     sDomain = DOMAIN;
     sFile = FILE;
@@ -166,15 +171,27 @@ def sendMsg(sMsg, nRoom):
         sCookies = loadFromFile(sFile);
     sCookies = sCookies or COOKIES;
     jar = TextCookieJar(sCookies, sDomain);
+    bili_jct = get_cookie_value(jar, 'bili_jct')
+    assert bili_jct
     mData = {
             'msg': sMsg,
             'roomid': nRoom,
+            'fontsize': 25,
+            'rnd': int(time.time()),
+            'color': '16777215',
+            'mode': 1,
+            'csrf': bili_jct,
+            'csrf_token': bili_jct,
     }
     bData = urllib.parse.urlencode(mData, True).encode();
     req = Request(sApi, data=bData, method='POST');
     jar.add_cookie_header(req);
     opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar));
-    opener.addheaders = [('User-Agent', sUa)];
+    opener.addheaders = [
+        ('User-Agent', sUa),
+        ('referer', 'https://live.bilibili.com/{}'.format(nRoom)),
+        ('Origin', 'https://live.bilibili.com'),
+    ];
     try:
         res = opener.open(req);
     except Exception as e:
@@ -212,7 +229,7 @@ def main():
                 time.sleep(1 - nDelta);
             sendMsg(sInput, room.nId);
             nTime0 = time.monotonic();
-    except (KeyboardInterrupt, EOFError) as e:
+    except (KeyboardInterrupt, EOFError):
         print();
         sys.exit();
 
