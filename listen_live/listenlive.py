@@ -1,5 +1,6 @@
 #! /usr/bin/env python3
 # -*- coding: UTF-8 -*-
+
 import os
 import sys
 import urllib.request
@@ -14,16 +15,19 @@ import argparse
 import threading
 import subprocess
 
-sAPI0 = 'http://space.bilibili.com/ajax/live/getLive?mid='
-sAPI1 = 'http://live.bilibili.com/api/player?id=cid:';
-sAPI2 = 'http://live.bilibili.com/live/getInfo?roomid=';    # obsolete
-sAPI3 = 'http://live.bilibili.com/api/playurl?cid=';        # obsolete
+sAPI0 = 'https://space.bilibili.com/ajax/live/getLive?mid='
+sAPI1 = 'https://live.bilibili.com/api/player?id=cid:';
+sAPI2 = 'https://live.bilibili.com/live/getInfo?roomid=';    # obsolete
+sAPI3 = 'https://live.bilibili.com/api/playurl?cid=';        # obsolete
 sAPI4 = 'https://api.live.bilibili.com/room/v1/Room/room_init?id='
-sAPI5 = 'http://api.live.bilibili.com/room/v1/Room/get_info?room_id='
+sAPI5 = 'https://api.live.bilibili.com/room/v1/Room/get_info?room_id='
 sAPI6 = 'http://api.live.bilibili.com/live_user/v1/UserInfo/get_anchor_in_room?roomid='
-sAPI7 = 'https://api.live.bilibili.com/api/playurl?otype=json&platform=web&cid='
+# sAPI7 = 'https://api.live.bilibili.com/api/playurl?otype=json&platform=web&cid='
+sAPI7 = 'https://api.live.bilibili.com/room/v1/Room/playUrl?qn=10000&platform=web&cid='
+sAPI8 = 'https://api.live.bilibili.com/room/v1/Room/playUrl?qn=150&platform=web&cid='
 
 DOWNLOAD = False;
+LOW_QUALITY = False;
 COMMAND = '';
 
 running = True;
@@ -31,7 +35,11 @@ mRoom2Host = {};
 
 def prepare():
     opener = urllib.request.build_opener();
-    opener.addheaders = [('User-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/46.0.2486.0 Safari/537.36 Edge/13.10586')];
+    opener.addheaders = [
+        ('User-agent', 'Mozilla/5.0 (X11; Linux x86_64; rv:69.0) Gecko/20100101 Firefox/69.0'),
+        ('Referer', 'https://live.bilibili.com/'),
+        ('Origin', 'https://live.bilibili.com'),
+    ];
     urllib.request.install_opener(opener);
 prepare();
 
@@ -42,9 +50,13 @@ def resolveUrl(nRoom):
     #with urlopen(sAPI3 + str(nRoom)) as res:
     #    bData = res.read();
     #sUrl = re.search(rb'<url><!\[CDATA\[(.+)\]\]><\/url>', bData).group(1).decode('utf-8');
-    with urlopen(sAPI7 + str(nRoom)) as res:
+    url = sAPI7
+    if LOW_QUALITY:
+        url = sAPI8
+    with urlopen(url + str(nRoom)) as res:
         bData = res.read();
     mData = json.loads(bData.decode());
+    mData = mData.get('data') or mData
     sUrl = mData['durl'][0]['url'];
     return sUrl;
 
@@ -158,7 +170,16 @@ def monitor(nRoom, wait):
                 subprocess.run(sCom, shell=True);
             else:
                 display('    playing room {}\nmpv {}'.format(nRoom, sUrl));
-                subprocess.run(['mpv', sUrl]);
+                subprocess.run([
+                    'mpv',
+                    (
+                        "--http-header-fields="
+                        "User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:70.0) Gecko/20100101 Firefox/70.0,"
+                        "Referer: https://live.bilibili.com/,"
+                        "Origin: https://live.bilibili.com"
+                    ),
+                    # '--user-agent', 'Mozilla/5.0 (X11; Linux x86_64; rv:69.0) Gecko/20100101 Firefox/69.0',
+                    sUrl]);
                 display('mpv exited.');
 
             wait(2);
@@ -177,13 +198,14 @@ def monitor(nRoom, wait):
 
             #        wait(2);
             #        sStatus, nRoom, aInfo = getRoom(nRoom, False);
-        wait(30);
+        wait(10);
 
 def main():
     global args;
     global running;
     global DOWNLOAD;
     global COMMAND;
+    global LOW_QUALITY;
     socket.setdefaulttimeout(30);
     parser1 = argparse.ArgumentParser(description='use you-get to monitor and download bilibili live');
     group1 = parser1.add_mutually_exclusive_group()
@@ -196,6 +218,7 @@ def main():
             help='handling the resolved stream with the given COMMAND; variables will be inserted using format syntax: COMMAND.format(URL, FILE), in which URL is the resolved stream url and FILE is the file name that would be used if the -d flag instead were set; take care of quoting: "{1}" "{0}"'
     );
     parser1.add_argument('-v', '--verbose', action='store_true', help='show you-get debug info');
+    parser1.add_argument('-l', '--low-quality', action='store_true', help='extract low quality stream');
     args = parser1.parse_args();
     nRoom = None;
     if (args.room):
@@ -212,6 +235,8 @@ def main():
             if ('f1' in locals()): f1.close();
     if (args.down):
         DOWNLOAD = True;
+    if (args.low_quality):
+        LOW_QUALITY = True;
     elif (args.command):
         COMMAND = args.command;
     if (not nRoom):
@@ -232,8 +257,11 @@ def main():
             wait(5);
             continue;
         except (http.client.HTTPException, urllib.error.URLError, ConnectionError, TimeoutError, json.JSONDecodeError, AssertionError) as e:
-            display('网络错误', e,'程序将在十秒后重启', sep='\n');
-            wait(10);
+            if isinstance(e, urllib.error.HTTPError) and e.code in (475, 474):
+                wait(1);
+                continue
+            display('网络错误', e,'程序将在五秒后重启', sep='\n');
+            wait(5);
             #time.sleep(10);
             continue;
 

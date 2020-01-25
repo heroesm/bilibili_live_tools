@@ -29,6 +29,7 @@ import sys
 import socket
 import json
 import struct
+import urllib.parse
 import urllib.request
 import urllib.error
 import re
@@ -54,6 +55,7 @@ sAPI2 = 'https://live.bilibili.com/live/getInfo?roomid=';    # obsolete
 sAPI4 = 'https://api.live.bilibili.com/room/v1/Room/room_init?id='
 sAPI5 = 'https://api.live.bilibili.com/room/v1/Room/get_info?room_id='
 sAPI6 = 'https://api.live.bilibili.com/live_user/v1/UserInfo/get_anchor_in_room?roomid='
+sAPI7 = 'https://api.live.bilibili.com/room/v1/Danmu/getConf?platform=pc&player=web&room_id='
 
 # the path to the configuration file
 sPath = 'config.ini'
@@ -187,23 +189,28 @@ def getRoom(nRoom):
         finally:
             if ('f1' in locals()): f1.close();
     try:
-        f1 = urllib.request.urlopen(sAPI1 + str(nRoom));
-        bRoomInfo = f1.read();
-        sRoomInfo = bRoomInfo.decode('utf-8');
-        sServer = re.search('<server>(.*?)</server>', sRoomInfo).group(1);
+        sServer = 'broadcastlv.chat.bilibili.com'
+        nPort = 2243
+        with urllib.request.urlopen(sAPI7 + str(nRoom)) as res:
+            res_str = res.read().decode();
+        obj = json.loads(res_str)
+        data = obj ['data']
+        sServer = data['host']
+        nPort = data['port']
+        # bRoomInfo = f1.read();
+        # sRoomInfo = bRoomInfo.decode('utf-8');
+        # f1 = urllib.request.urlopen(sAPI1 + str(nRoom));
+        # bRoomInfo = f1.read();
+        # sRoomInfo = bRoomInfo.decode('utf-8');
+        # match = re.search('<server>(.*?)</server>', sRoomInfo)
+        # if match:
+        #     sServer = match.group(1);
         # hostname of danmu server
-    except socket.timeout as e:
+    except Exception as e:
         display1('获取弹幕服务器时连接超时',
                 '尝试使用默认弹幕服务器地址',
                 sep='\n');
         sServer = 'livecmt-1.bilibili.com';
-    except urllib.error.HTTPError as e:
-        # case that the room ID is fake
-        nRoom = fetchRealRoom(nRoom);
-        f1 = urllib.request.urlopen(sAPI1 + str(nRoom));
-        bRoomInfo = f1.read();
-        sRoomInfo = bRoomInfo.decode('utf-8');
-        sServer = re.search('<server>(.*?)</server>', sRoomInfo).group(1);
     finally:
         if ('f1' in locals()): f1.close();
     if (not sServer):
@@ -227,7 +234,7 @@ def getRoom(nRoom):
         log(bRoomInfo);
     finally:
         if ('f1' in locals()): f1.close();
-    return sServer, nRoom, sHost, sTitle;
+    return sServer, nPort, nRoom, sHost, sTitle;
 
 def handler1(sock1):
     'handle danmu-related TCP socket with socket makefile'
@@ -241,7 +248,7 @@ def handler1(sock1):
         nLength = struct.unpack('>I', bLength)[0];
         # the total length of the a single danmu message; the next 4 bytes is the header length
         bContent = fSock.read(nLength - 4);
-        if (hexlify(bContent) == b'001000010000000800000001'):
+        if (hexlify(bContent).startswith(b'001000010000000800000001')):
             # welcome message
             display1('已接入弹幕服务器', '按回车显示在线人数', 'ctrl-c退出');
             while alive:
@@ -308,9 +315,14 @@ def handleDanmu(bContent):
             assert (bContent[8:12] == unhexlify('00000000'));
             mData = json.loads(bContent[12:].decode('utf-8'));
             #if (re.match(r'welcome|sys_gift|sys_msg|send_top|add_vt_member|bet_bettor|bet_banker', mData['cmd'].lower())):
-            if (mData['cmd'].lower() in ['welcome', 'welcome_guard', 'sys_gift', 'sys_msg', 'send_top', 'add_vt_member', 'bet_bettor', 'bet_banker', 'tv_start', 'tv_end', 'combo_end', 'room_rank']):
+            if ('cmd' not in mData):
+                pass
+            elif (mData['cmd'].lower() in ['welcome', 'welcome_guard', 'sys_gift', 'send_top', 'add_vt_member', 'bet_bettor', 'bet_banker', 'tv_start', 'tv_end', 'combo_end', 'room_rank', 'notice_msg', 'activity_banner_red_notice_close', 'week_star_clock', 'entry_effect']):
                 # welcome message | system-wide gift message 1 | system-wide gift message 2 | virtual audience?
-                pass;
+                log(mData)
+            elif (mData['cmd'].lower() in ['sys_msg',]):
+                if not '应援喵' in mData.get('msg', ''):
+                    log(mData)
             elif (mData['cmd'].lower() == 'special_gift'):
                 # add danmu storm message to blocked list
                 if (aBlock):
@@ -320,20 +332,18 @@ def handleDanmu(bContent):
                             aBlock.append(mStorm['content']);
                             display('节奏风暴： ' + mStorm['content']);
                             cleanupTimer = threading.Timer(90,
-                                lambda: aBlock.pop(2) if (len(aBlock) > 2) else 0
+                                lambda: aBlock.pop() if (len(aBlock) > 2) else 0
                             );
                             cleanupTimer.daemon = True;
                             cleanupTimer.start();
-                        #if (mStorm['action'] == 'end'):
-                        #    aBlock[2:] = aBlock[3:];
                 else:
                     pass;
-            elif (mData['cmd'].lower() == 'danmu_msg'):
+            elif (mData['cmd'].lower().startswith('danmu_msg')):
                 # text message
                 sSender = sRawSender = mData['info'][2][1];
                 sMessage = sRawMessage = mData['info'][1];
                 # block flooding message
-                if (sMessage in aBlock):
+                if (sMessage.strip() in aBlock):
                     return;
                 if (mConfig['timeStamp']):
                     sTime = time.strftime("(%H:%M:%S)");
@@ -370,8 +380,8 @@ def handleDanmu(bContent):
                 display('{} 已被禁言'.format(mData['uname']));
             elif (mData['cmd'].lower() == 'room_silent_on'):
                 # sType maybe means the user level under which users will be silent
-                sType = str(mData['type']) if mData['type'] != -1 else '全局';
-                display('开启{}禁言 {} 秒'.format(sType, mData['countdown']));
+                sType = str(mData['type']) if mData.get('type') and mData['type'] != -1 else '全局';
+                display('开启{}禁言 {} 秒'.format(sType, mData.get('countdown')));
             elif (mData['cmd'].lower() == 'room_silent_off'):
                 display('全局禁言已取消');
             elif (mData['cmd'].lower() == 'live'):
@@ -387,6 +397,23 @@ def handleDanmu(bContent):
             log('unknown notification', bContent, sep='\n');
     else:
         log('unknown type', bContent, sep='\n');
+
+
+def show_history_msg(nRoom):
+    try:
+        api = 'https://api.live.bilibili.com/ajax/msg'
+        data_bytes = urllib.parse.urlencode({'roomid': nRoom}).encode()
+        with urllib.request.urlopen(api, data=data_bytes) as res:
+            res_str = res.read().decode()
+        obj = json.loads(res_str)
+        item_list = obj['data']['room']
+        display('历史弹幕:')
+        for item in item_list:
+            sSender = item['nickname']
+            sMessage = item['text']
+            display('  {}: {}'.format(sSender, sMessage));
+    except Exception as err:
+        display('failed to show history msg of room {}: {}'.format(nRoom, repr(err)))
 
 
 def main():
@@ -440,11 +467,17 @@ def main():
         aBlock = ['bilibili-(゜-゜)つロ乾杯~',
                   '- ( ゜- ゜)つロ 乾杯~ - bilibili',
                   '哔哩哔哩 (゜-゜)つロ 干杯~',
-                  '哔哩哔哩 (゜-゜)つロ 干杯~,',
-                  '哔哩哔哩 (゜-゜)つロ 干杯~',
                   '哔哩哔哩 ( ゜ -゜)つロ 干杯~',
-                  '送你一片樱花雨，生生世世陪伴你~',
                   '忽如一夜春风来，千树万树樱花开！',
+                  '送你一片樱花雨，生生世世陪伴你~',
+                  '送你一片樱花雨，生生世世陪伴你～',
+                  '一定要变强哦！(ง >o<)ง',
+                  '忽如一夜春风来，千树万树樱花开！',
+                  '你是我这一生都要守护的人~',
+                  '能和你相遇真是太好啦！',
+                  '你的魅力，喵不可言！',
+                  '请问，需要来点兔子吗(*/ω＼*)？',
+                  '今晚月色真美，风也温柔~',
         ];
     if (mConfig['notify']):
         notifyMode = 2;
@@ -457,7 +490,8 @@ def main():
     while running:
         try:
             try:
-                sServer, nRoom, sHoster, sTitle = getRoom(nRoom);
+                sServer, nPort, nRoom, sHoster, sTitle = getRoom(nRoom);
+                nPort = nPort or 788
             except urllib.error.HTTPError as e:
                 if (e.code == 404):
                     display1('找不到该房间，请重新输入房间号');
@@ -465,14 +499,15 @@ def main():
                     continue;
                 else:
                     raise;
+            show_history_msg(nRoom)
             if (mConfig['write']):
-                sTime = time.strftime('%m%d_%H%M%S-');
+                sTime = time.strftime('%y%m%d_%H%M%S-');
                 sName = sHoster + '-' + sTitle;
                 sName = re.sub(r'[^\w_\-.()]', '-', sName);
                 sFileName = '{}{}.txt'.format(sTime, sName);
                 localFile = open(sFileName, 'a', encoding='utf-8');
             log('弹幕服务器 ' + sServer);
-            aAddr1 = (sServer, 788);
+            aAddr1 = (sServer, nPort);
             sock1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM);
             try:
                 sock1.connect(aAddr1);
@@ -484,7 +519,7 @@ def main():
                 else:
                     sServer = 'livecmt-1.bilibili.com';
                 log('弹幕服务器 ' + sServer);
-                aAddr1 = (sServer, 788);
+                aAddr1 = (sServer, nPort);
                 sock1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM);
                 sock1.connect(aAddr1);
             log('地址为 ', *sock1.getpeername());
@@ -514,7 +549,7 @@ def main():
         except (socket.timeout, TimeoutError) as e:
             display1('连接超时，重试...');
             continue;
-        except SocketDied as e:
+        except (OSError, SocketDied) as e:
             display1('连接被关闭，程序重启...');
             continue;
         except BaseException as e:
@@ -538,6 +573,13 @@ def main():
             if (localFile):
                 display1('弹幕已保存到文件 {}'.format(localFile.name));
                 localFile.close();
+                fn = localFile.name
+                if (os.path.isfile(fn) and os.path.getsize(fn) == 0):
+                    try:
+                        display1('删除空弹幕文件 {}'.format(fn))
+                        os.remove(fn);
+                    except Exception as err:
+                        display1(repr(err))
 
 if __name__ == '__main__':
     main();

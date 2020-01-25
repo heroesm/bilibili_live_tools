@@ -9,7 +9,6 @@ import time
 from collections import deque
 
 class Displayer():
-    lock = threading.Lock();
     def __init__(self, nMode=0, nDelay=0):
         # nMode - whether to use threaded display
         # nDelay - the interval time during threaded display
@@ -25,7 +24,6 @@ class Displayer():
             self.thread.start();
             self.display = self.threadedDisplay;
     def commonDisplay(self, *aArgs, **mArgs):
-        type(self).lock.acquire();
         try:
             print(*aArgs, **mArgs);
         except UnicodeEncodeError as e:
@@ -34,8 +32,6 @@ class Displayer():
             #sCode = sys.stdin.encoding;
             #aArgs = (str(x).encode(sCode, 'replace').decode(sCode) for x in aArgs);
             print(*aArgs, **mArgs);
-        finally:
-            type(self).lock.release();
     def dequeue(self):
         while 1:
             while (len(self.queue) > 0):

@@ -7,6 +7,7 @@ import re
 import logging
 import json
 import threading
+import http.client
 import urllib.request
 import urllib.error
 from urllib.request import urlopen#, Request
@@ -24,14 +25,15 @@ SCRIPT = '';
 COMMAND = '';
 INTERVAL = 20;
 
-sApi0 = 'http://space.bilibili.com/ajax/live/getLive?mid={}'
-sApi1 = 'http://live.bilibili.com/api/player?id=cid:{}';
-sApi2 = 'http://live.bilibili.com/live/getInfo?roomid={}';  # obsolete
-sApi3 = 'http://live.bilibili.com/api/playurl?cid={}';      # obsolete
+sApi0 = 'https://space.bilibili.com/ajax/live/getLive?mid={}'
+sApi1 = 'https://live.bilibili.com/api/player?id=cid:{}';
+sApi2 = 'https://live.bilibili.com/live/getInfo?roomid={}';  # obsolete
+sApi3 = 'https://live.bilibili.com/api/playurl?cid={}';      # obsolete
 sAPI4 = 'https://api.live.bilibili.com/room/v1/Room/room_init?id={}'
-sApi5 = 'http://api.live.bilibili.com/room/v1/Room/get_info?room_id={}'
-sApi6 = 'http://api.live.bilibili.com/live_user/v1/UserInfo/get_anchor_in_room?roomid={}'
-sApi7 = 'https://api.live.bilibili.com/api/playurl?cid={}&otype=json&platform=web'
+sApi5 = 'https://api.live.bilibili.com/room/v1/Room/get_info?room_id={}'
+sApi6 = 'https://api.live.bilibili.com/live_user/v1/UserInfo/get_anchor_in_room?roomid={}'
+# sApi7 = 'https://api.live.bilibili.com/api/playurl?cid={}&otype=json&platform=web'
+sApi7 = 'https://api.live.bilibili.com/room/v1/Room/playUrl?qn=10000&platform=web&cid={}'
 
 aRooms = [];
 sHome = '';
@@ -57,7 +59,12 @@ def prepare():
     sleepEvent = threading.Event();
     wait = sleepEvent.wait;
     opener = urllib.request.build_opener();
-    opener.addheaders = [('User-agent', 'Mozilla/5.0')];
+    # opener.addheaders = [('User-agent', 'Mozilla/5.0')];
+    opener.addheaders = [
+        ('User-agent', 'Mozilla/5.0 (X11; Linux x86_64; rv:69.0) Gecko/20100101 Firefox/69.0'),
+        ('Referer', 'https://live.bilibili.com'),
+        ('Origin', 'https://live.bilibili.com'),
+    ];
     urllib.request.install_opener(opener);
     socket.setdefaulttimeout(30);
 prepare();
@@ -173,7 +180,8 @@ class Room():
             sData = res.read().decode('utf-8');
         mData = json.loads(sData);
         try:
-            aUrl = [x['url'] for x in mData['durl']];
+            mData = mData.get('data') or mData
+            # aUrl = [x['url'] for x in mData['durl']];
             sUrl = self.sUrl = mData['durl'][0]['url'];
         except AttributeError as e:
             log.error('failed to get stream URL: {}'.format(e));
@@ -219,6 +227,8 @@ class Room():
             log.warning('{} donwloading timeout'.format(self.nId));
         except ConnectionResetError as e:
             log.warning('downloading reset: {}'.format(e));
+        except http.client.IncompleteRead as e:
+            log.exception(repr(e));
         finally:
             if ('res' in locals()): res.close();
             if ('f1' in locals()): f1.close();
