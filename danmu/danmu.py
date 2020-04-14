@@ -1,6 +1,8 @@
 #! /usr/bin/env python3
 # -*- coding: UTF-8 -*-
 
+from typing import List
+
 '''
 refer from http://www.lyyyuna.com/2016/03/14/bilibili-danmu01/:
 
@@ -38,6 +40,7 @@ from binascii import hexlify, unhexlify
 import time
 import threading
 import select
+import zlib
 
 from configParser import ConfigParser
 from utility import Displayer, SetInterval
@@ -56,6 +59,12 @@ sAPI4 = 'https://api.live.bilibili.com/room/v1/Room/room_init?id='
 sAPI5 = 'https://api.live.bilibili.com/room/v1/Room/get_info?room_id='
 sAPI6 = 'https://api.live.bilibili.com/live_user/v1/UserInfo/get_anchor_in_room?roomid='
 sAPI7 = 'https://api.live.bilibili.com/room/v1/Danmu/getConf?platform=pc&player=web&room_id='
+
+start_interval = True
+use_ver2 = False
+
+VER1 = 0x1
+VER2 = 0x2
 
 # the path to the configuration file
 sPath = 'config.ini'
@@ -132,7 +141,7 @@ mMap = {
 }
 
 def prepare():
-    os.chdir(os.path.split(__file__)[0]);
+    os.chdir(os.path.split(os.path.abspath(__file__))[0]);
 prepare();
 
 class SocketDied(OSError):
@@ -236,6 +245,25 @@ def getRoom(nRoom):
         if ('f1' in locals()): f1.close();
     return sServer, nPort, nRoom, sHost, sTitle;
 
+
+def disassemble_v2_msg(raw: bytes) -> List[bytes]:
+    results = []
+    if raw[0:4] == unhexlify('00100002'):
+        try:
+            remain = zlib.decompress(raw[12:]);
+            while remain:
+                raw_length = remain[:4]
+                length = struct.unpack('>I', raw_length)[0];
+                msg = remain[4:length]
+                remain = remain[length:]
+                results.append(msg)
+        except Exception:
+            results = [raw]
+    else:
+        results = [raw]
+    return results
+
+
 def handler1(sock1):
     'handle danmu-related TCP socket with socket makefile'
     global alive;
@@ -248,8 +276,11 @@ def handler1(sock1):
         nLength = struct.unpack('>I', bLength)[0];
         # the total length of the a single danmu message; the next 4 bytes is the header length
         bContent = fSock.read(nLength - 4);
-        if (hexlify(bContent).startswith(b'001000010000000800000001')):
-            # welcome message
+        # welcome message
+        if (
+            hexlify(bContent).startswith(b'001000010000000800000001')  # ver1
+            or hexlify(bContent).startswith(b'001000020000000800000001')  # ver2
+        ):
             display1('已接入弹幕服务器', '按回车显示在线人数', 'ctrl-c退出');
             while alive:
                 try:
@@ -258,9 +289,12 @@ def handler1(sock1):
                         raise SocketDied;
                     nLength = struct.unpack('>I', bLength)[0];
                     bContent = fSock.read(nLength - 4);
-                    handleDanmu(bContent);
+                    for msg in disassemble_v2_msg(bContent):
+                        handleDanmu(msg);
                 except TimeoutError as e:
                     log(e);
+        else:
+            log(hexlify(bContent))
     finally:
         if ('fSock' in locals()): fSock.close();
 
@@ -289,6 +323,93 @@ def handler2(sock1):
                     handleDanmu(bBuff[4:]);
                     bBuff = b'';
 
+
+def handle_message(raw_message):
+    assert (raw_message[8:12] == unhexlify('00000000'));
+    body = raw_message[12:]
+    mData = json.loads(body.decode('utf-8'));
+    #if (re.match(r'welcome|sys_gift|sys_msg|send_top|add_vt_member|bet_bettor|bet_banker', mData['cmd'].lower())):
+    if ('cmd' not in mData):
+        pass
+    elif (mData['cmd'].lower() in ['welcome', 'welcome_guard', 'sys_gift', 'send_top', 'add_vt_member', 'bet_bettor', 'bet_banker', 'tv_start', 'tv_end', 'combo_end', 'room_rank', 'notice_msg', 'activity_banner_red_notice_close', 'week_star_clock', 'entry_effect']):
+        # welcome message | system-wide gift message 1 | system-wide gift message 2 | virtual audience?
+        log(mData)
+    elif (mData['cmd'].lower() in ['sys_msg',]):
+        if not '应援喵' in mData.get('msg', ''):
+            log(mData)
+    elif (mData['cmd'].lower() == 'special_gift'):
+        # add danmu storm message to blocked list
+        if (aBlock):
+            mStorm = mData['data'].get('39');
+            if (mStorm):
+                if (mStorm['action'] == 'start'):
+                    aBlock.append(mStorm['content']);
+                    display('节奏风暴： ' + mStorm['content']);
+                    cleanupTimer = threading.Timer(90,
+                        lambda: aBlock.pop() if (len(aBlock) > 2) else 0
+                    );
+                    cleanupTimer.daemon = True;
+                    cleanupTimer.start();
+        else:
+            pass;
+    elif (mData['cmd'].lower().startswith('danmu_msg')):
+        # text message
+        sSender = sRawSender = mData['info'][2][1];
+        sMessage = sRawMessage = mData['info'][1];
+        # block flooding message
+        if (sMessage.strip() in aBlock):
+            return;
+        if (mConfig['timeStamp']):
+            sTime = time.strftime("(%H:%M:%S)");
+        else:
+            sTime = '';
+        if (mConfig['colour']):
+            # ANSI escape charcter, preceded by \x1b (\033 or namely Escape character) and [, followed by m, 30-37 accord to colours - Black, Red, Green, Yellow, Blue, Magenta, Cyan and White; 90-97 accord to the same named but much brighter colours
+            colour = lambda x,y: '\x1b[{}m{}\x1b[00m'.format(y, x);
+            sSender = colour(sSender, aColour[0]);
+            sMessage = colour(sMessage, aColour[1]);
+        if (mConfig['singleLine']):
+            display('{1} {0}: {2}'.format(sSender, sTime, sMessage));
+            if (localFile):
+                localFile.write('{1} {0}: {2}\n'.format(
+                    sRawSender, sTime, sRawMessage
+                ));
+                #localFile.flush();
+        else:
+            display('{0}: {1}\n    {2}'.format(sSender, sTime, sMessage));
+            if (localFile):
+                localFile.write('{0}: {1}\n    {2}\n'.format(
+                    sRawSender, sTime, sRawMessage
+                ));
+                #localFile.flush();
+    elif (mData['cmd'].lower() in ['combo_send', 'send_gift', 'guard_buy']):
+        # gift message
+        if (mConfig['gift']):
+            data = mData['data']
+            display( '{0} 赠送 {1} {2}'.format(
+                data.get('uname') or data.get('username'),
+                data.get('num'),
+                data.get('giftName') or data.get('gift_name')
+            ));
+    elif (mData['cmd'].lower() == 'room_block_msg'):
+        display('{} 已被禁言'.format(mData['uname']));
+    elif (mData['cmd'].lower() == 'room_silent_on'):
+        # sType maybe means the user level under which users will be silent
+        sType = str(mData['type']) if mData.get('type') and mData['type'] != -1 else '全局';
+        display('开启{}禁言 {} 秒'.format(sType, mData.get('countdown')));
+    elif (mData['cmd'].lower() == 'room_silent_off'):
+        display('全局禁言已取消');
+    elif (mData['cmd'].lower() == 'live'):
+        display('直播开启');
+    elif (mData['cmd'].lower() == 'preparing'):
+        display('直播结束');
+    else:
+        # record unknown cmd field in response message, that possibly has been overlooked by me or newly added by bilibili
+        with open('unknown_message.txt', 'a', encoding='utf-8') as f2:
+            f2.write('\n' + time.strftime("%m%d_%H%M%S-") + str(mData));
+        log(mData);
+
+
 def handleDanmu(bContent):
     'deal with separate danmu message and output them accordingly'
     global nPop;
@@ -297,104 +418,28 @@ def handleDanmu(bContent):
     global localFile;
     global aBlock;
     global notifyMode;
-    if (bContent[0:4] == unhexlify('00100001')):
-        # control info
-        if (bContent[4:8] == unhexlify('00000003')):
-            # online counter
-            assert (bContent[8:12] == unhexlify('00000001'));
-            nPop = struct.unpack('>I', bContent[12:16])[0];
-            if (notifyMode):
-                display1('在线数:',nPop, ' 房间号:', nRoom, sep='');
-                if (notifyMode == 1):
-                    notifyMode = 0;
-        else:
-            log('unknown control info', bContent, sep='\n');
-    elif (bContent[0:4] == unhexlify('00100000')):
-        if (bContent[4:8] == unhexlify('00000005')):
-            # notification
-            assert (bContent[8:12] == unhexlify('00000000'));
-            mData = json.loads(bContent[12:].decode('utf-8'));
-            #if (re.match(r'welcome|sys_gift|sys_msg|send_top|add_vt_member|bet_bettor|bet_banker', mData['cmd'].lower())):
-            if ('cmd' not in mData):
-                pass
-            elif (mData['cmd'].lower() in ['welcome', 'welcome_guard', 'sys_gift', 'send_top', 'add_vt_member', 'bet_bettor', 'bet_banker', 'tv_start', 'tv_end', 'combo_end', 'room_rank', 'notice_msg', 'activity_banner_red_notice_close', 'week_star_clock', 'entry_effect']):
-                # welcome message | system-wide gift message 1 | system-wide gift message 2 | virtual audience?
-                log(mData)
-            elif (mData['cmd'].lower() in ['sys_msg',]):
-                if not '应援喵' in mData.get('msg', ''):
-                    log(mData)
-            elif (mData['cmd'].lower() == 'special_gift'):
-                # add danmu storm message to blocked list
-                if (aBlock):
-                    mStorm = mData['data'].get('39');
-                    if (mStorm):
-                        if (mStorm['action'] == 'start'):
-                            aBlock.append(mStorm['content']);
-                            display('节奏风暴： ' + mStorm['content']);
-                            cleanupTimer = threading.Timer(90,
-                                lambda: aBlock.pop() if (len(aBlock) > 2) else 0
-                            );
-                            cleanupTimer.daemon = True;
-                            cleanupTimer.start();
-                else:
-                    pass;
-            elif (mData['cmd'].lower().startswith('danmu_msg')):
-                # text message
-                sSender = sRawSender = mData['info'][2][1];
-                sMessage = sRawMessage = mData['info'][1];
-                # block flooding message
-                if (sMessage.strip() in aBlock):
-                    return;
-                if (mConfig['timeStamp']):
-                    sTime = time.strftime("(%H:%M:%S)");
-                else:
-                    sTime = '';
-                if (mConfig['colour']):
-                    # ANSI escape charcter, preceded by \x1b (\033 or namely Escape character) and [, followed by m, 30-37 accord to colours - Black, Red, Green, Yellow, Blue, Magenta, Cyan and White; 90-97 accord to the same named but much brighter colours
-                    colour = lambda x,y: '\x1b[{}m{}\x1b[00m'.format(y, x);
-                    sSender = colour(sSender, aColour[0]);
-                    sMessage = colour(sMessage, aColour[1]);
-                if (mConfig['singleLine']):
-                    display('{1} {0}: {2}'.format(sSender, sTime, sMessage));
-                    if (localFile):
-                        localFile.write('{1} {0}: {2}\n'.format(
-                            sRawSender, sTime, sRawMessage
-                        ));
-                        #localFile.flush();
-                else:
-                    display('{0}: {1}\n    {2}'.format(sSender, sTime, sMessage));
-                    if (localFile):
-                        localFile.write('{0}: {1}\n    {2}\n'.format(
-                            sRawSender, sTime, sRawMessage
-                        ));
-                        #localFile.flush();
-            elif (mData['cmd'].lower() in ['combo_send', 'send_gift']):
-                # gift message
-                if (mConfig['gift']):
-                    display( '{0} 赠送 {1} {2}'.format(
-                        mData['data'].get('uname'),
-                        mData['data'].get('num'),
-                        mData['data'].get('giftName')
-                    ));
-            elif (mData['cmd'].lower() == 'room_block_msg'):
-                display('{} 已被禁言'.format(mData['uname']));
-            elif (mData['cmd'].lower() == 'room_silent_on'):
-                # sType maybe means the user level under which users will be silent
-                sType = str(mData['type']) if mData.get('type') and mData['type'] != -1 else '全局';
-                display('开启{}禁言 {} 秒'.format(sType, mData.get('countdown')));
-            elif (mData['cmd'].lower() == 'room_silent_off'):
-                display('全局禁言已取消');
-            elif (mData['cmd'].lower() == 'live'):
-                display('直播开启');
-            elif (mData['cmd'].lower() == 'preparing'):
-                display('直播结束');
+    if (
+        bContent[0:2] == unhexlify('0010')
+        and bContent[4:8] == unhexlify('00000003')
+    ):
+        # online counter
+        assert (bContent[8:12] == unhexlify('00000001'));
+        nPop = struct.unpack('>I', bContent[12:16])[0];
+        if (notifyMode):
+            display1('在线数:',nPop, ' 房间号:', nRoom, sep='');
+            if (notifyMode == 1):
+                notifyMode = 0;
+    elif (
+        bContent[0:4] == unhexlify('00100000')
+        or bContent[0:4] == unhexlify('00100002')
+    ):
+        for msg in disassemble_v2_msg(bContent):
+            if (msg[4:8] == unhexlify('00000005')):
+                # notification
+                assert (msg[8:12] == unhexlify('00000000'));
+                handle_message(msg)
             else:
-                # record unknown cmd field in response message, that possibly has been overlooked by me or newly added by bilibili
-                with open('unknown_message.txt', 'a', encoding='utf-8') as f2:
-                    f2.write('\n' + time.strftime("%m%d_%H%M%S-") + str(mData));
-                log(mData);
-        else:
-            log('unknown notification', bContent, sep='\n');
+                log('unknown notification', bContent, sep='\n');
     else:
         log('unknown type', bContent, sep='\n');
 
@@ -478,6 +523,12 @@ def main():
                   '你的魅力，喵不可言！',
                   '请问，需要来点兔子吗(*/ω＼*)？',
                   '今晚月色真美，风也温柔~',
+                  '来拥抱勇气和爱呀（*/ω＼*）',
+                  '鼠年大吉！好运亨通！',
+                  '斯人若彩虹，遇见方知有~',
+                  '我们一起学喵叫，一起喵喵喵喵',
+                  '我们一起学喵叫，喵喵喵喵叫',
+                  '我们一起学喵叫，一起喵喵喵喵叫',
         ];
     if (mConfig['notify']):
         notifyMode = 2;
@@ -528,15 +579,19 @@ def main():
             #bPayload = b'{"roomid":%d,"uid":%d}' % (nRoom, nUid);
             bPayload = ('{"roomid":%d,"uid":%d}' % (nRoom, nUid)).encode('utf-8');
             nLength = len(bPayload) + 16;
-            bReq = struct.pack('>IIII', nLength, 0x100001, 0x7, 0x1);
+            ver = VER1
+            if use_ver2:
+                ver = VER2
+            bReq = struct.pack('>IHHII', nLength, 0x10, ver, 0x7, 0x1);
             bReq += bPayload;
             sock1.sendall(bReq);
             alive = True;
-            bHeartBeat = struct.pack('>IIII', 0x10, 0x100001, 0x2, 0x1);
+            bHeartBeat = struct.pack('>IHHII', 0x10, 0x10, ver, 0x2, 0x1);
             sock1.sendall(bHeartBeat);
             # send heartbeat message per 30 seconds
             interval = SetInterval(lambda:(sock1.sendall(bHeartBeat)), 30);
-            interval.start();
+            if start_interval:
+                interval.start();
             # capture CR in stdin to send hearbeat in order to fetch freshed online count
             if (not beatClock):
                 beatClock = interval.clock;
@@ -552,7 +607,7 @@ def main():
         except (OSError, SocketDied) as e:
             display1('连接被关闭，程序重启...');
             continue;
-        except BaseException as e:
+        except Exception as e:
             if (isinstance(e, KeyboardInterrupt)):
                 display1('程序退出');
                 running = False;
