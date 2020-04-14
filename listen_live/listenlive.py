@@ -157,7 +157,7 @@ def monitor(nRoom, wait):
         display('{} {}, status {}'.format(sAction, nRoom, sStatus));
         while sStatus == 'on':
             sName = aInfo[0] + '-' + aInfo[1];
-            sName = re.sub(r'[^\w_\-.()]', '-', sName);
+            sName = re.sub(r'[^\w_\-.()]', '_', sName);
             sTime = time.strftime('%y%m%d_%H%M%S-');
             sName = '{}{}.flv'.format(sTime, sName);
             sUrl = resolveUrl(nRoom);
